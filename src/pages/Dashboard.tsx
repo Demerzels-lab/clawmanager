@@ -117,20 +117,49 @@ export default function Dashboard() {
   const completeTask = async (task: Task) => {
     if (!user) return
     setRunningTool('completing')
-    await new Promise(resolve => setTimeout(resolve, 1500))
     
-    const timestamp = new Date().toISOString()
-    const newTransaction: Transaction = { id: Date.now(), timestamp, type: 'task_reward', amount: task.reward, description: `Completed: ${task.title}` }
-    const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, status: 'completed' } : t)
-    const updatedUser = { ...user, balance: user.balance + task.reward, tasksCompleted: user.tasksCompleted + 1, totalEarnings: user.totalEarnings + task.reward }
-    const updatedTransactions = [...transactions, newTransaction]
-    
-    setUser(updatedUser)
-    setTasks(updatedTasks)
-    setTransactions(updatedTransactions)
+    // 1. Tutup modal popup segera
     setSelectedTask(null)
-    saveData(updatedUser, updatedTasks, updatedTransactions, agentLogs)
-    setRunningTool(null)
+    
+    // 2. Pindahkan user ke tab Inbox otomatis untuk melihat AI bekerja
+    setActiveTab('inbox')
+
+    // 3. Buat prompt otomatis untuk mendelegasikan tugas ke AI
+    const autoPrompt = `[SYSTEM_TASK_ASSIGNMENT] Please execute the following task for me: "${task.title}" (${task.sector} Sector). 
+    Description: ${task.description}. 
+    Write a brief execution report and if necessary, use the CREATE_FILE tool to generate the result output.`
+
+    // 4. Tampilkan pesan secara optimistik di UI Chat
+    setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text: autoPrompt, timestamp: new Date().toISOString() }])
+    setChatMessages(prev => [...prev, { id: 'loading-temp', sender: 'system', text: `Agent is executing task: ${task.title}...`, timestamp: new Date().toISOString() }])
+
+    try {
+      // 5. Panggil Edge Function Supabase (AI)
+      const { error } = await supabase.functions.invoke('rapid-handler', { body: { text: autoPrompt } })
+      if (error) throw error
+
+      // 6. JIKA AI BERHASIL: Berikan hadiah (reward) ke Balance User
+      const timestamp = new Date().toISOString()
+      const newTransaction: Transaction = { id: Date.now(), timestamp, type: 'task_reward', amount: task.reward, description: `Completed: ${task.title}` }
+      const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, status: 'completed' } : t)
+      const updatedUser = { ...user, balance: user.balance + task.reward, tasksCompleted: user.tasksCompleted + 1, totalEarnings: user.totalEarnings + task.reward }
+      const updatedTransactions = [...transactions, newTransaction]
+      
+      setUser(updatedUser)
+      setTasks(updatedTasks)
+      setTransactions(updatedTransactions)
+      saveData(updatedUser, updatedTasks, updatedTransactions, agentLogs)
+      
+      // 7. Ambil balasan terbaru AI dari database
+      fetchDatabaseData()
+
+    } catch (error) {
+      console.error("Task Execution Error:", error)
+      setChatMessages(prev => prev.filter(msg => msg.id !== 'loading-temp'))
+      setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'system', text: `ERROR: Agent failed to execute task ${task.title}. Reward cancelled.`, timestamp: new Date().toISOString() }])
+    } finally {
+      setRunningTool(null)
+    }
   }
 
   const tools = [
