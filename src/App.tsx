@@ -7,11 +7,13 @@ import LandingPage from './pages/Landing'
 import DocsPage from './pages/Docs'
 import LoginPage from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import { TerminalSplash } from './components/TerminalSplash'
 
 import './App.css'
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
+  const [showSplash, setShowSplash] = useState(true)
 
   useEffect(() => {
     const stored = localStorage.getItem('clawmanager_user')
@@ -19,6 +21,10 @@ export default function App() {
       setUser(JSON.parse(stored))
     }
   }, [])
+
+  if (showSplash) {
+    return <TerminalSplash onComplete={() => setShowSplash(false)} />
+  }
 
   return (
     <Router>
