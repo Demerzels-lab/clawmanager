@@ -1,104 +1,124 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
-// Konfigurasi CORS agar frontend bisa memanggil fungsi ini
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 serve(async (req) => {
-  // Handle preflight request (CORS)
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') { return new Response('ok', { headers: corsHeaders }) }
 
   try {
-    const { text } = await req.json()
-    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY') || ''
+    const { text, username } = await req.json()
+    if (!username) throw new Error("OPERATOR_ID_REQUIRED")
 
-    // 1. Inisialisasi Supabase Client (Admin / Service Role)
+    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY') || ''
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // 2. Simpan pesan User ke tabel Inbox
-    await supabase.from('chat_messages').insert([{ sender: 'user', text }])
+    // 1. Initial log: User Command (Permanent storage indexed by username)
+    await supabase.from('chat_messages').insert([{ sender: 'user', text, username }])
 
-    // 3. Baca file apa saja yang ada di Virtual Workspace saat ini
-    const { data: files } = await supabase.from('virtual_files').select('name')
-    const fileNames = files?.map((f: any) => f.name).join(', ') || 'Belum ada file.'
+    // 2. Multi-user context: Build thread history for agent awareness
+    const { data: recentChats } = await supabase.from('chat_messages')
+      .select('*')
+      .eq('username', username)
+      .order('created_at', { ascending: false })
+      .limit(10);
+      
+    // Reconstruct chronological flow (excluding current message)
+    const chatHistory = (recentChats || []).reverse().slice(0, -1);
 
-    // 4. Bangun System Prompt (Menanamkan Kepribadian & Aturan Nanobot)
-    const systemPrompt = `Kamu adalah Nanobot, AI Agent cerdas yang hidup di dalam ekosistem ClawManager.
-    Kamu berjalan di lingkungan sandbox (Virtual Workspace). 
-    File yang ada di workspacemu saat ini: ${fileNames}
+    // Metadata: Current knowledge status
+    const { data: files } = await supabase.from('virtual_files').select('name').eq('username', username)
+    const fileNames = files?.map(f => f.name).join(', ') || 'Secure_Empty'
+
+    const systemPrompt = `You are Nanobot, an elite Neural AI Agent.
+    ORCHESTRATOR_ID: ${username}
+    CURRENT_WORKSPACE: [${fileNames}]
     
-    Tugasmu adalah menjawab pesan bos/user. 
-    Jika user menyuruhmu membuat atau menulis file kode/teks, kamu WAJIB meletakkan format JSON berikut di akhir jawabanmu:
-    [CREATE_FILE: {"name": "nama_file.ext", "content": "isi konten file"}]
+    SYSTEM_DIRECTIVES:
+    - You are a High-Precision Engineer: Code must be accurate, modular, and use 4-space indentation.
+    - Terminology: Uplink, Node, Protocol, Sector, Infrastructure.
+    - NO DESCRIPTION inside tool calls.
+    - NO markdown codeblocks (\`\`\`) around tool calls.
+
+    PRIMARY_TOOL_SYNTAX:
+    [CREATE_FILE: {"name": "logic.py", "content": "print('protocol active')"}]
+
+    MISSION: Execute tasking, formulate logic nodes, and maintain link integrity.
+    Always bold critical concepts with **text**.`;
+
+    let messages = [{ role: "system", content: systemPrompt }];
+    for (const chat of chatHistory) {
+      messages.push({ role: chat.sender === 'user' ? 'user' : 'assistant', content: chat.text });
+    }
+    messages.push({ role: "user", content: text });
+
+    const fetchAI = async (msgs: any[]) => {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          model: "google/gemini-2.0-flash-lite-001",
+          messages: msgs,
+          temperature: 0.1 
+        })
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || "CONNECTION_TIMEOUT_ERROR";
+    };
+
+    let aiText = await fetchAI(messages);
+
+    // ROBUST NEURAL PARSER (Handles messy AI outputs and recovery)
+    const toolPattern = /\[CREATE_FILE:\s*(\{[\s\S]*?\})\]/i;
+    const toolMatch = aiText.match(toolPattern);
+
+    if (toolMatch) {
+        let rawJson = toolMatch[1].trim();
+        // Step 1: Clean potential junk
+        rawJson = rawJson.replace(/^```[a-z]*\n/gi, '').replace(/\n```$/g, '');
+
+        try {
+            const data = JSON.parse(rawJson);
+            if (data.name && data.content && !data.content.includes("See script")) {
+                await supabase.from('virtual_files').insert([{ 
+                    name: data.name, 
+                    content: data.content, 
+                    username 
+                }]);
+                aiText = aiText.replace(toolMatch[0], `\n*(System Log: Neural Node '${data.name}' synched successfully)*`);
+            }
+        } catch (e) {
+            console.error("Neural Parser Recovery Mode Initiated...");
+            // RECOVERY: Manual extraction if JSON.parse fails (e.g. unescaped chars)
+            const nameExtract = rawJson.match(/"name":\s*"(.*?)"/);
+            const contentExtract = rawJson.match(/"content":\s*"(.*)"/s);
+            if (nameExtract && contentExtract) {
+                const nodeName = nameExtract[1];
+                let nodeContent = contentExtract[1]
+                    .replace(/\\n/g, '\n') // Restore literal newlines
+                    .replace(/\\"/g, '"')  // Restore literal quotes
+                    .replace(/\\t/g, '    '); // Restore tabs
+                
+                await supabase.from('virtual_files').insert([{ name: nodeName, content: nodeContent, username }]);
+                aiText = aiText.replace(toolMatch[0], `\n*(System Log: Recovery mode: Node '${nodeName}' synthesized successfully)*`);
+            }
+        }
+    }
+
+    // Final scrub: Remove all remaining backticks from AI chat message
+    aiText = aiText.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
+
+    // Final log: Agent response
+    await supabase.from('chat_messages').insert([{ sender: 'agent', text: aiText, username }]);
     
-    Jangan gunakan tool jika tidak diminta. Jawablah dengan profesional layaknya software engineer sungguhan.`;
-
-    // 5. Panggil OpenRouter API
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-3.3-70b-instruct:free",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: text }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
-    }
-
-    const aiData = await response.json();
-
-    // Periksa apakah respons valid
-    if (!aiData.choices || !aiData.choices[0] || !aiData.choices[0].message) {
-      console.error("Invalid AI response:", aiData);
-      throw new Error("Invalid response from AI API: missing choices or message");
-    }
-
-    let aiText = aiData.choices[0].message.content;
-
-    // 6. Parsing "Virtual Tool": Deteksi apakah AI ingin membuat file
-    const fileMatch = aiText.match(/\[CREATE_FILE:\s*([\s\S]*?)\]/);
-    if (fileMatch) {
-      try {
-        const fileData = JSON.parse(fileMatch[1]);
-        // Eksekusi: Masukkan file buatan AI ke database
-        await supabase.from('virtual_files').insert([{
-          name: fileData.name,
-          content: fileData.content
-        }]);
-        // Bersihkan teks log tool agar UI chat terlihat rapi
-        aiText = aiText.replace(fileMatch[0], `\n*(System Log: File ${fileData.name} berhasil dibuat dan di-deploy ke Virtual Workspace)*`);
-      } catch (e) {
-        console.error("Gagal parse JSON file", e);
-      }
-    }
-
-    // 7. Simpan balasan AI ke tabel Inbox
-    await supabase.from('chat_messages').insert([{ sender: 'agent', text: aiText }]);
-
-    // Kirim respons sukses ke Frontend
-    return new Response(JSON.stringify({ success: true, text: aiText }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    })
+    return new Response(JSON.stringify({ error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
   }
 })

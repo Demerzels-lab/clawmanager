@@ -27,22 +27,34 @@ export default function Dashboard() {
   const [chatInput, setChatInput] = useState('')
 
   const fetchDatabaseData = useCallback(async () => {
-    const { data: chats } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true })
+    if (!user) return
+    
+    const { data: chats } = await supabase.from('chat_messages')
+      .select('*')
+      .eq('username', user.username)
+      .order('created_at', { ascending: true })
     if (chats) setChatMessages(chats.map(c => ({ id: c.id, sender: c.sender, text: c.text, timestamp: c.created_at })))
 
-    const { data: files } = await supabase.from('virtual_files').select('*').order('updated_at', { ascending: false })
+    const { data: files } = await supabase.from('virtual_files')
+      .select('*')
+      .eq('username', user.username)
+      .order('updated_at', { ascending: false })
     if (files) setVirtualFiles(files.map(f => ({ id: f.id, name: f.name, content: f.content, updatedAt: f.updated_at })))
 
-    const { data: memories } = await supabase.from('agent_memories').select('*').order('created_at', { ascending: false })
+    const { data: memories } = await supabase.from('agent_memories')
+      .select('*')
+      .eq('username', user.username)
+      .order('created_at', { ascending: false })
     if (memories) setAgentMemories(memories.map(m => ({ id: m.id, topic: m.topic, details: m.details, timestamp: m.created_at })))
-  }, [])
+  }, [user])
 
   useEffect(() => {
     const storedUser = localStorage.getItem('clawmanager_user')
     if (!storedUser) { navigate('/login'); return; }
-    setUser(JSON.parse(storedUser))
-    fetchDatabaseData()
+    const parsedUser = JSON.parse(storedUser)
+    setUser(parsedUser)
     
+    // Initial fetch of tasks, transactions, and logs from local storage
     const storedTasks = localStorage.getItem('clawmanager_tasks')
     const storedTransactions = localStorage.getItem('clawmanager_transactions')
     const storedLogs = localStorage.getItem('clawmanager_logs')
@@ -50,7 +62,15 @@ export default function Dashboard() {
     setTasks(storedTasks ? JSON.parse(storedTasks) : INITIAL_TASKS)
     setTransactions(storedTransactions ? JSON.parse(storedTransactions) : [])
     setAgentLogs(storedLogs ? JSON.parse(storedLogs) : [])
-  }, [navigate, fetchDatabaseData])
+  }, [navigate])
+
+  // 2. Fetch data HANYA jika user sudah terdefinisi dan bersihkan chat lama agar tidak 'flash' data user lain
+  useEffect(() => {
+    if (user?.username) {
+      setChatMessages([]) // Bersihkan UI sebelum loading data baru
+      fetchDatabaseData()
+    }
+  }, [user?.username, fetchDatabaseData])
 
   const saveData = useCallback((newUser: User, newTasks: Task[], newTransactions: Transaction[], newLogs: AgentLog[]) => {
     localStorage.setItem('clawmanager_user', JSON.stringify(newUser))
@@ -60,15 +80,18 @@ export default function Dashboard() {
   }, [])
 
   const handleSendMessage = async () => {
-    if (!chatInput.trim()) return
+    if (!chatInput.trim() || !user) return
     const userText = chatInput.trim()
-    setChatInput('')
+    const currentUsername = user.username // Capture username scope
     
+    setChatInput('')
     setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text: userText, timestamp: new Date().toISOString() }])
-    setChatMessages(prev => [...prev, { id: 'loading-temp', sender: 'system', text: 'Agent is analyzing and processing...', timestamp: new Date().toISOString() }])
+    setChatMessages(prev => [...prev, { id: 'loading-temp', sender: 'system', text: 'Connecting to Agent Core...', timestamp: new Date().toISOString() }])
 
     try {
-      const { error } = await supabase.functions.invoke('rapid-handler', { body: { text: userText } })
+      const { error } = await supabase.functions.invoke('rapid-handler', { 
+        body: { text: userText, username: currentUsername } 
+      })
       if (error) throw error
       fetchDatabaseData()
     } catch (error) {
@@ -137,7 +160,9 @@ export default function Dashboard() {
 
     try {
       // 5. Panggil Edge Function Supabase (AI)
-      const { error } = await supabase.functions.invoke('rapid-handler', { body: { text: autoPrompt } })
+      const { error } = await supabase.functions.invoke('rapid-handler', { 
+        body: { text: autoPrompt, username: user.username } 
+      })
       if (error) throw error
 
       // 6. JIKA AI BERHASIL: Berikan hadiah (reward) ke Balance User
@@ -361,7 +386,7 @@ export default function Dashboard() {
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
                 <div className="flex flex-col">
-                    <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">Available_Contracts</h2>
+                    <h2 className="text-xl font-black text-white italic tracking-tighter">Available_Contracts</h2>
                     <span className="text-[10px] text-green-500/40 font-mono uppercase tracking-[0.2em]">{tasks.filter(t => t.status === 'open').length} ACTIVE NODES IN MARKET</span>
                 </div>
                 <div className="flex gap-2">
@@ -398,7 +423,7 @@ export default function Dashboard() {
           {activeTab === 'tools' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
               <div className="flex flex-col border-l-4 border-green-500 pl-4 py-2">
-                <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">Neural_Toolkit</h2>
+                <h2 className="text-2xl font-black text-white tracking-tighter italic">Neural_Toolkit</h2>
                 <p className="text-[10px] text-green-500/50 font-mono tracking-[0.2em] uppercase">Advanced Agent Capabilities // v4.0.2</p>
               </div>
 
@@ -439,7 +464,7 @@ export default function Dashboard() {
           {/* TAB: History */}
           {activeTab === 'history' && (
             <div className="space-y-6 animate-in fade-in duration-500">
-              <h2 className="text-xl font-black text-white italic tracking-tighter uppercase border-b border-green-500/20 pb-4">NODE_TELEMETRY</h2>
+              <h2 className="text-xl font-black text-white italic tracking-tighter border-b border-green-500/20 pb-4">NODE_TELEMETRY</h2>
               <div className="bg-[#050505]/80 rounded-sm border border-green-500/10 overflow-hidden neon-border">
                 <table className="w-full font-mono text-[10px]">
                   <thead>
@@ -476,7 +501,7 @@ export default function Dashboard() {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
                 <Database className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"/>
-                <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">NEURAL_DEPOSITS</h2>
+                <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_DEPOSITS</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {agentMemories.map(m => (
@@ -500,7 +525,7 @@ export default function Dashboard() {
              <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
              <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
                 <MessageSquare className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">NEURAL_COMM_LINK</h2>
+                <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_COMM_LINK</h2>
              </div>
              <div className="flex-1 bg-[#050505]/60 rounded-sm border border-green-500/10 flex flex-col min-h-[500px] neon-border overflow-hidden">
                <div className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar bg-black/40">
@@ -519,7 +544,7 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-[8px] font-black uppercase tracking-widest opacity-40">{msg.sender === 'user' ? 'Operator' : 'Agent'}</span>
                           </div>
-                          <div className="whitespace-pre-wrap text-[11px] font-mono uppercase tracking-tighter">
+                          <div className="whitespace-pre-wrap text-[11px] font-mono tracking-tighter">
                             {msg.text.split('**').map((part, i) => i % 2 === 1 ? <b key={i} className="text-green-400 font-extrabold">{part}</b> : part)}
                           </div>
                         </div>
@@ -549,7 +574,7 @@ export default function Dashboard() {
              <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
              <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
                 <Folder className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">VIRTUAL_DATA_STORAGE</h2>
+                <h2 className="text-xl font-black text-white italic tracking-tighter">VIRTUAL_DATA_STORAGE</h2>
              </div>
              <div className="flex-1 flex gap-6 min-h-[500px]">
                <div className="w-1/3 bg-[#050505]/80 rounded-sm border border-green-500/10 p-3 space-y-1 neon-border custom-scrollbar overflow-y-auto">
