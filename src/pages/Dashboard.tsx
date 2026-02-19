@@ -519,7 +519,9 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-[8px] font-black uppercase tracking-widest opacity-40">{msg.sender === 'user' ? 'Operator' : 'Agent'}</span>
                           </div>
-                          <div className="whitespace-pre-wrap text-[11px] font-mono uppercase tracking-tighter">{msg.text}</div>
+                          <div className="whitespace-pre-wrap text-[11px] font-mono uppercase tracking-tighter">
+                            {msg.text.split('**').map((part, i) => i % 2 === 1 ? <b key={i} className="text-green-400 font-extrabold">{part}</b> : part)}
+                          </div>
                         </div>
                      )}
                    </div>
@@ -574,7 +576,9 @@ export default function Dashboard() {
                             <span className="text-green-500/40 text-[9px] font-black uppercase tracking-[0.2em]">FILE://{selectedFile.name}</span>
                             <span className="text-green-900 text-[8px]">{new Date(selectedFile.updatedAt).toISOString()}</span>
                         </div>
-                        {selectedFile.content}
+                        <pre className="whitespace-pre-wrap font-mono text-[11px] text-green-100/90 leading-relaxed selection:bg-green-500/30" style={{ tabSize: 4 }}>
+                            {selectedFile.content}
+                        </pre>
                     </div>
                  ) : (
                     <div className="h-full flex items-center justify-center text-green-900/30 uppercase tracking-[0.4em] italic font-black">

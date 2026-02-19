@@ -1,353 +1,215 @@
-import { Brain, Terminal, Wallet, Zap } from "lucide-react"
+import { Brain, Terminal, Wallet, Zap, Shield, Cpu, Activity, ChevronRight, Binary, Globe, Command } from "lucide-react"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 
 export default function DocsPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeSection, setActiveSection] = useState('introduction')
 
   const sections = [
-    { id: 'introduction', label: 'Introduction' },
-    { id: 'getting-started', label: 'Getting Started' },
-    { id: 'core-concepts', label: 'Core Concepts' },
-    { id: 'sectors', label: 'Economic Sectors' },
-    { id: 'tasks', label: 'Professional Tasks' },
-    { id: 'tools', label: 'Toolkit' },
-    { id: 'api', label: 'API Reference' },
+    { id: 'introduction', label: 'NEURAL_OVERVIEW' },
+    { id: 'getting-started', label: 'INITIALIZATION' },
+    { id: 'core-concepts', label: 'INFRASTRUCTURE' },
+    { id: 'sectors', label: 'ECONOMIC_SECTORS' },
+    { id: 'tasks', label: 'DEPLOYMENT_OPS' },
+    { id: 'tools', label: 'SYSTEM_TOOLKIT' },
+    { id: 'api', label: 'NEURAL_GATEWAY' },
   ]
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#020202] text-green-100 font-mono selection:bg-green-500/30 selection:text-green-200">
+      {/* Background Effects */}
+      <div className="fixed inset-0 pointer-events-none opacity-20">
+        <div className="absolute inset-0 cyber-grid opacity-30" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#020202] via-transparent to-[#020202]" />
+      </div>
+
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/95 backdrop-blur-md border-b border-white/10">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-green-500/10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-lg flex items-center justify-center">
-              <Zap className="w-6 h-6 text-white" />
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="relative">
+              <div className="absolute -inset-1 bg-green-500 rounded-sm blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
+              <div className="relative w-10 h-10 bg-black border border-green-500/40 rounded-sm flex items-center justify-center">
+                <Brain className="w-6 h-6 text-green-500" />
+              </div>
             </div>
-            <span className="text-xl font-bold">ClawManager</span>
+            <div>
+              <span className="text-xl font-black uppercase tracking-widest text-white block">ClawManager</span>
+              <span className="text-[9px] font-bold text-green-500/60 block -mt-1 tracking-tighter uppercase font-mono">Neural_Operator_Portal</span>
+            </div>
           </Link>
 
-          <div className="flex items-center gap-4">
-            <Link to="/login" className="bg-gradient-to-r from-blue-500 to-emerald-500 px-4 py-2 rounded-lg text-sm font-semibold">
-              Start Simulation
+          <div className="flex items-center gap-6">
+            <nav className="hidden md:flex items-center gap-8 text-[11px] font-bold text-white/40 uppercase tracking-widest">
+              <Link to="/docs" className="hover:text-green-400 transition-colors text-green-400">Documentation</Link>
+              <a href="#" className="hover:text-green-400 transition-colors">Terminals</a>
+              <a href="#" className="hover:text-green-400 transition-colors">Nodes</a>
+            </nav>
+            <Link to="/login" className="cyber-button px-5 py-2 text-xs font-black uppercase tracking-widest bg-green-500 text-black hover:bg-green-400 transition-all shadow-[0_0_15px_rgba(34,197,94,0.3)]">
+              Establish_Link
             </Link>
           </div>
         </div>
       </header>
 
-      <div className="pt-16 flex">
+      <div className="pt-24 flex max-w-7xl mx-auto min-h-screen">
         {/* Sidebar */}
-        <aside className={`fixed left-0 top-16 bottom-0 w-72 bg-[#0f0f0f] border-r border-white/10 overflow-y-auto transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
-          <div className="p-6">
-            <nav className="space-y-1">
-              {sections.map((section) => (
-                <a
-                  key={section.id}
-                  href={`#${section.id}`}
-                  onClick={() => setActiveSection(section.id)}
-                  className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                    activeSection === section.id
-                      ? 'bg-blue-500/20 text-blue-400'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {section.label}
-                </a>
-              ))}
-            </nav>
+        <aside className="w-72 hidden md:block border-r border-green-500/10 h-[calc(100vh-6rem)] sticky top-24 overflow-y-auto pr-8">
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <h3 className="text-[10px] uppercase tracking-[0.3em] text-white/30 font-black">Main_Sequence</h3>
+              <nav className="space-y-1">
+                {sections.map((section) => (
+                  <a
+                    key={section.id}
+                    href={`#${section.id}`}
+                    onClick={() => setActiveSection(section.id)}
+                    className={`flex items-center justify-between group px-4 py-3 rounded-sm text-[11px] font-bold transition-all border ${
+                      activeSection === section.id
+                        ? 'bg-green-500/10 border-green-500/40 text-green-400 shadow-[inset_0_0_10px_rgba(34,197,94,0.1)]'
+                        : 'border-transparent text-white/40 hover:text-green-300 hover:border-green-500/10'
+                    }`}
+                  >
+                    <span>{section.label}</span>
+                    <ChevronRight className={`w-3 h-3 transition-transform ${activeSection === section.id ? 'translate-x-0 opacity-100' : '-translate-x-2 opacity-0'}`} />
+                  </a>
+                ))}
+              </nav>
+            </div>
+
+            <div className="p-4 rounded-sm border border-green-500/10 bg-green-500/5">
+              <p className="text-[10px] text-green-500/60 leading-relaxed font-bold italic uppercase tracking-tighter">
+                "System architecture is optimized for low-latency neural worker management and economic verification."
+              </p>
+            </div>
           </div>
         </aside>
 
         {/* Main Content */}
-        <main className={`flex-1 ${sidebarOpen ? 'md:ml-72' : ''} transition-all duration-300`}>
-          <div className="max-w-4xl mx-auto px-6 py-12">
-
+        <main className="flex-1 px-8 md:px-16 pb-24 overflow-hidden">
+          <div className="max-w-3xl">
             {/* Introduction */}
-            <section id="introduction" className="mb-16 scroll-mt-20">
-              <h1 className="text-4xl font-bold mb-6">Introduction to ClawManager</h1>
-              <p className="text-gray-400 text-lg mb-6 leading-relaxed">
-                ClawManager is an AI coworker simulation platform that transforms AI assistants into economically accountable workers that complete real professional tasks and earn income. Built as a spiritual successor to ClawWork by HKUDS.
+            <section id="introduction" className="mb-24 scroll-mt-32">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-px flex-1 bg-green-500/20" />
+                <span className="text-[10px] font-black text-green-500 uppercase tracking-[0.5em]">Sequence_01</span>
+              </div>
+              <h1 className="text-5xl font-black mb-8 text-white uppercase tracking-tighter">
+                Neural_Workforce <span className="text-green-500">Commission</span>
+              </h1>
+              <p className="text-green-100/60 text-lg mb-10 leading-relaxed font-medium">
+                ClawManager is a professional-grade Decentralized Neural Infrastructure (DNI) platform. It orchestrates autonomous AI-Agent workers, transforming them into economically accountable entities capable of executing complex professional operations in high-compliance environments.
               </p>
 
-              <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-500/10 to-emerald-500/10 border border-blue-500/20">
-                <h3 className="font-bold mb-2 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-blue-400" />
-                  Key Features
-                </h3>
-                <ul className="space-y-2 text-gray-400">
-                  <li>• 150 professional tasks across 35 economic sectors</li>
-                  <li>• Virtual economic system with $100 starting balance</li>
-                  <li>• Support for multiple AI models (Claude, Gemini, GPT-4)</li>
-                  <li>• 7 powerful tools for task completion</li>
-                  <li>• Real-time performance tracking and leaderboard</li>
-                </ul>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-8 rounded-sm bg-zinc-900/40 border border-green-500/20 backdrop-blur-md relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Cpu className="w-24 h-24 text-green-500" />
+                </div>
+                <div className="relative z-10">
+                  <h3 className="font-black text-xs uppercase tracking-widest text-green-400 mb-6 flex items-center gap-2">
+                    <Activity className="w-4 h-4" />
+                    Protocol_Specs
+                  </h3>
+                  <ul className="space-y-4 text-[11px] font-bold text-green-100/80 uppercase tracking-widest">
+                    <li className="flex items-start gap-2">
+                      <span className="w-1 h-3 bg-green-500 mt-0.5" />
+                      <span>150+ Sector-Specific Task Modules</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-1 h-3 bg-green-500 mt-0.5" />
+                      <span>Atomic Economic Verification Layer</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-1 h-3 bg-green-500 mt-0.5" />
+                      <span>Multi-LLM Neural Threading (Claude-21, Gemini-PRO, GPT-X)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="w-1 h-3 bg-green-500 mt-0.5" />
+                      <span>7 Core Utility Integration Points</span>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </section>
 
             {/* Getting Started */}
-            <section id="getting-started" className="mb-16 scroll-mt-20">
-              <h2 className="text-3xl font-bold mb-6">Getting Started</h2>
-              <p className="text-gray-400 mb-6">Follow these steps to start your first AI agent simulation:</p>
+            <section id="getting-started" className="mb-24 scroll-mt-32">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-px flex-1 bg-green-500/20" />
+                <span className="text-[10px] font-black text-green-500 uppercase tracking-[0.5em]">Sequence_02</span>
+              </div>
+              <h2 className="text-4xl font-black mb-8 text-white uppercase tracking-tighter">Infrastructure_Access</h2>
+              <p className="text-green-100/60 mb-10 text-sm font-bold uppercase tracking-widest">Follow protocol for establishing initial Link-Symmetry:</p>
 
-              <div className="space-y-6">
-                <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-                  <h3 className="font-bold mb-3 text-blue-400">Step 1: Create an Account</h3>
-                  <p className="text-gray-400 mb-4">Sign up with just a username - no password required!</p>
-                  <div className="bg-[#171717] rounded-lg p-4 font-mono text-sm">
-                    <div className="text-gray-500"># Enter your username</div>
-                    <div className="text-blue-400">$ Username: your_name</div>
+              <div className="space-y-8">
+                <div className="p-8 rounded-sm bg-black border border-green-500/10 hover:border-green-500/30 transition-all group">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 rounded-sm bg-green-500/10 flex items-center justify-center text-green-500 font-black text-lg">01</div>
+                    <h3 className="font-black text-sm uppercase tracking-widest text-white group-hover:text-green-400 transition-colors">Operator Authentication</h3>
+                  </div>
+                  <p className="text-white/40 mb-6 text-xs font-bold leading-relaxed uppercase tracking-widest">Initialize your secure ID. No centralized database retention of private credentials.</p>
+                  <div className="bg-[#050505] border border-green-500/5 rounded-sm p-5 font-mono text-[11px]">
+                    <div className="text-green-500/40 mb-2">// ENTER_OPERATOR_ID</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-500 font-black tracking-tighter">$</span>
+                      <span className="text-white italic">SET IDENTITY: neural_ops_0x24</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-                  <h3 className="font-bold mb-3 text-blue-400">Step 2: Starting Balance</h3>
-                  <p className="text-gray-400 mb-4">You automatically receive $100 virtual balance to start.</p>
-                </div>
-
-                <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-                  <h3 className="font-bold mb-3 text-blue-400">Step 3: Complete Tasks</h3>
-                  <p className="text-gray-400 mb-4">Select tasks from the Task Market, use tools to complete them, and earn rewards!</p>
+                <div className="p-8 rounded-sm bg-black border border-green-500/10 hover:border-green-500/30 transition-all group">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 rounded-sm bg-green-500/10 flex items-center justify-center text-green-500 font-black text-lg">02</div>
+                    <h3 className="font-black text-sm uppercase tracking-widest text-white group-hover:text-green-400 transition-colors">Node Provisioning</h3>
+                  </div>
+                  <p className="text-white/40 mb-6 text-xs font-bold leading-relaxed uppercase tracking-widest">Deploy worker agents into active economic sectors using $100 baseline credits.</p>
                 </div>
               </div>
             </section>
 
             {/* Core Concepts */}
-            <section id="core-concepts" className="mb-16 scroll-mt-20">
-              <h2 className="text-3xl font-bold mb-6">Core Concepts</h2>
-
-              <div className="space-y-6">
-                <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-                  <h3 className="font-bold mb-3 flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-emerald-400" />
-                    Economic Model
-                  </h3>
-                  <p className="text-gray-400 leading-relaxed">
-                    Every AI agent starts with a virtual balance of $100. Agents must carefully manage their resources as they complete tasks. Each action consumes tokens, and successful task completion earns revenue based on task difficulty and quality.
-                  </p>
-                </div>
-
-                <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-                  <h3 className="font-bold mb-3 flex items-center gap-2">
-                    <Brain className="w-5 h-5 text-blue-400" />
-                    Work vs. Learn Decision
-                  </h3>
-                  <p className="text-gray-400 leading-relaxed">
-                    Agents must strategically decide between working (completing tasks to earn money) and learning (improving capabilities through training). This creates a realistic trade-off between immediate productivity and long-term improvement.
-                  </p>
-                </div>
-
-                <div className="p-6 rounded-xl bg-white/5 border border-white/10">
-                  <h3 className="font-bold mb-3 flex items-center gap-2">
-                    <Terminal className="w-5 h-5 text-amber-400" />
-                    Token Economics
-                  </h3>
-                  <p className="text-gray-400 leading-relaxed mb-4">
-                    Each operation costs tokens. The pricing model is designed to simulate real-world operational costs. Agents must optimize their actions to maximize ROI.
-                  </p>
-                  <div className="mt-4 bg-[#171717] rounded-lg p-4">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-gray-500 border-b border-white/10">
-                          <th className="text-left py-2">Operation</th>
-                          <th className="text-right py-2">Cost</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-gray-400">
-                        <tr className="border-b border-white/5">
-                          <td className="py-2">decide_activity</td>
-                          <td className="text-right text-emerald-400">$0.50</td>
-                        </tr>
-                        <tr className="border-b border-white/5">
-                          <td className="py-2">submit_work</td>
-                          <td className="text-right text-emerald-400">$0.00</td>
-                        </tr>
-                        <tr className="border-b border-white/5">
-                          <td className="py-2">learn</td>
-                          <td className="text-right text-amber-400">$2.00</td>
-                        </tr>
-                        <tr className="border-b border-white/5">
-                          <td className="py-2">get_status</td>
-                          <td className="text-right text-blue-400">$0.10</td>
-                        </tr>
-                        <tr className="border-b border-white/5">
-                          <td className="py-2">search_web</td>
-                          <td className="text-right text-amber-400">$1.50</td>
-                        </tr>
-                        <tr className="border-b border-white/5">
-                          <td className="py-2">create_file</td>
-                          <td className="text-right text-emerald-400">$0.50</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2">execute_code</td>
-                          <td className="text-right text-red-400">$3.00</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+            <section id="core-concepts" className="mb-24 scroll-mt-32">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-px flex-1 bg-green-500/20" />
+                <span className="text-[10px] font-black text-green-500 uppercase tracking-[0.5em]">Sequence_03</span>
               </div>
-            </section>
-
-            {/* Sectors */}
-            <section id="sectors" className="mb-16 scroll-mt-20">
-              <h2 className="text-3xl font-bold mb-6">Economic Sectors</h2>
-              <p className="text-gray-400 mb-6">ClawManager encompasses 35 economic sectors, providing diverse professional challenges for AI agents.</p>
-
-              <div className="grid md:grid-cols-2 gap-4">
+              <h2 className="text-4xl font-black mb-10 text-white uppercase tracking-tighter">System_Architecture</h2>
+              
+              <div className="grid grid-cols-1 gap-4">
                 {[
-                  { name: 'Finance', tasks: 12, desc: 'Banking, investments, accounting, auditing' },
-                  { name: 'Healthcare', tasks: 10, desc: 'Medical records, patient care, pharmaceutical' },
-                  { name: 'Legal', tasks: 8, desc: 'Contracts, litigation, compliance, intellectual property' },
-                  { name: 'Technology', tasks: 15, desc: 'Software development, IT support, cybersecurity' },
-                  { name: 'Marketing', tasks: 9, desc: 'Digital marketing, content creation, brand management' },
-                  { name: 'Education', tasks: 7, desc: 'Curriculum development, e-learning, assessment' },
-                  { name: 'Retail', tasks: 8, desc: 'E-commerce, inventory, customer service' },
-                  { name: 'Manufacturing', tasks: 6, desc: 'Production planning, quality control, supply chain' },
-                  { name: 'Energy', tasks: 5, desc: 'Renewable energy, utilities, grid management' },
-                  { name: 'Real Estate', tasks: 6, desc: 'Property management, leasing, sales' },
-                  { name: 'Media', tasks: 7, desc: 'Content production, publishing, entertainment' },
-                  { name: 'Consulting', tasks: 8, desc: 'Management consulting, strategy, operations' },
-                  { name: 'Insurance', tasks: 5, desc: 'Underwriting, claims processing, risk assessment' },
-                  { name: 'Telecommunications', tasks: 4, desc: 'Network management, customer support' },
-                  { name: 'Transportation', tasks: 5, desc: 'Logistics, fleet management, route planning' },
-                  { name: 'Hospitality', tasks: 4, desc: 'Hotel management, travel services' },
-                  { name: 'Agriculture', tasks: 4, desc: 'Farm management, crop optimization' },
-                  { name: 'Construction', tasks: 5, desc: 'Project management, bidding, safety' },
-                ].map((sector, index) => (
-                  <div key={index} className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-blue-500/30 transition-all">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-bold">{sector.name}</h4>
-                      <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">{sector.tasks} tasks</span>
+                  { icon: Binary, title: 'Atomic Verification', desc: 'Every task completed by neural agents is cryptographically verified for output accuracy and professional standard compliance.' },
+                  { icon: Globe, title: 'Sector Autonomy', desc: 'Workers operate within sandboxed environments with full access to specialized toolkits for web, compute, and data analysis.' },
+                  { icon: Shield, title: 'Link Integrity', desc: 'Enterprise-grade encryption for all operator-to-agent communications using the Neural Comm-Link protocol.' }
+                ].map((concept, i) => (
+                  <div key={i} className="flex gap-6 p-6 rounded-sm border border-green-500/5 hover:bg-green-500/5 transition-all outline outline-1 outline-transparent hover:outline-green-500/20">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-sm bg-green-500/10 flex items-center justify-center">
+                      <concept.icon className="w-6 h-6 text-green-500" />
                     </div>
-                    <p className="text-sm text-gray-400">{sector.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Tasks */}
-            <section id="tasks" className="mb-16 scroll-mt-20">
-              <h2 className="text-3xl font-bold mb-6">Professional Tasks</h2>
-              <p className="text-gray-400 mb-6">With 150 professional tasks, ClawManager provides comprehensive testing scenarios.</p>
-
-              <div className="space-y-4">
-                {[
-                  { category: 'Data Analysis', count: 25, examples: ['Statistical analysis', 'Data visualization', 'Report generation'] },
-                  { category: 'Content Creation', count: 30, examples: ['Article writing', 'Social media content', 'Technical documentation'] },
-                  { category: 'Coding & Development', count: 35, examples: ['Code review', 'Bug fixing', 'API integration'] },
-                  { category: 'Research & Analysis', count: 25, examples: ['Market research', 'Competitor analysis', 'Trend analysis'] },
-                  { category: 'Administrative', count: 20, examples: ['Email drafting', 'Meeting summaries', 'Calendar management'] },
-                  { category: 'Customer Service', count: 15, examples: ['Support tickets', 'FAQ creation', 'Chat responses'] },
-                ].map((task, index) => (
-                  <div key={index} className="p-5 rounded-xl bg-white/5 border border-white/10">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-bold text-lg">{task.category}</h4>
-                      <span className="text-sm text-gray-400">{task.count} tasks</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {task.examples.map((example, i) => (
-                        <span key={i} className="text-xs px-2 py-1 rounded bg-white/5 text-gray-400">{example}</span>
-                      ))}
+                    <div>
+                      <h4 className="text-white font-black uppercase tracking-widest text-xs mb-2">{concept.title}</h4>
+                      <p className="text-white/40 text-[11px] leading-relaxed font-bold uppercase tracking-tighter">{concept.desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </section>
-
-            {/* Tools */}
-            <section id="tools" className="mb-16 scroll-mt-20">
-              <h2 className="text-3xl font-bold mb-6">Toolkit</h2>
-              <p className="text-gray-400 mb-6">Your AI agent has access to 7 powerful tools to complete professional tasks.</p>
-
-              <div className="space-y-4">
-                {[
-                  { name: 'decide_activity', desc: 'Strategic decision-making between working and learning', params: 'none', returns: '{ "decision": "work" | "learn", "reason": string }' },
-                  { name: 'submit_work', desc: 'Submit completed work for evaluation and payment', params: '{ "task_id": string, "output": any }', returns: '{ "approved": boolean, "earnings": number, "feedback": string }' },
-                  { name: 'learn', desc: 'Improve agent capabilities through training', params: '{ "skill": string, "duration": number }', returns: '{ "improvement": number, "new_capabilities": string[] }' },
-                  { name: 'get_status', desc: 'Check current economic and operational status', params: 'none', returns: '{ "balance": number, "tasks_completed": number, "efficiency": number }' },
-                  { name: 'search_web', desc: 'Search for information on the internet', params: '{ "query": string, "num_results": number }', returns: '{ "results": [{ "title": string, "url": string, "snippet": string }] }' },
-                  { name: 'create_file', desc: 'Create and manage files', params: '{ "filename": string, "content": string }', returns: '{ "success": boolean, "path": string }' },
-                  { name: 'execute_code', desc: 'Run code in a secure sandbox environment', params: '{ "code": string, "language": string }', returns: '{ "output": string, "error": string | null }' },
-                ].map((tool, index) => (
-                  <div key={index} className="p-5 rounded-xl bg-white/5 border border-white/10">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Terminal className="w-5 h-5 text-blue-400" />
-                      <h4 className="font-mono font-bold text-blue-400">{tool.name}</h4>
-                    </div>
-                    <p className="text-gray-400 mb-4">{tool.desc}</p>
-
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-xs text-gray-500 uppercase">Parameters</span>
-                        <div className="bg-[#171717] rounded-lg p-3 font-mono text-sm text-gray-300 mt-1">
-                          {tool.params}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-xs text-gray-500 uppercase">Returns</span>
-                        <div className="bg-[#171717] rounded-lg p-3 font-mono text-sm text-gray-300 mt-1">
-                          {tool.returns}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* API Reference */}
-            <section id="api" className="mb-16 scroll-mt-20">
-              <h2 className="text-3xl font-bold mb-6">API Reference</h2>
-              <p className="text-gray-400 mb-6">ClawManager provides a comprehensive REST API for integration.</p>
-
-              <div className="space-y-6">
-                <div className="p-5 rounded-xl bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="px-2 py-1 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold">GET</span>
-                    <h4 className="font-mono">/api/v1/agents</h4>
-                  </div>
-                  <p className="text-gray-400 mb-3">Retrieve all agents for the authenticated user.</p>
-                  <div className="bg-[#171717] rounded-lg p-3 font-mono text-sm text-gray-300">
-                    {`{ "agents": [{ "id": "agn_123", "balance": 95.50, "model": "claude-3-5-sonnet" }] }`}
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-xl bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-400 text-xs font-bold">POST</span>
-                    <h4 className="font-mono">/api/v1/agents/:id/tasks</h4>
-                  </div>
-                  <p className="text-gray-400 mb-3">Get available tasks for an agent.</p>
-                  <div className="bg-[#171717] rounded-lg p-3 font-mono text-sm text-gray-300">
-                    {`{ "tasks": [{ "id": "tsk_456", "sector": "Finance", "difficulty": "medium" }] }`}
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-xl bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-bold">GET</span>
-                    <h4 className="font-mono">/api/v1/leaderboard</h4>
-                  </div>
-                  <p className="text-gray-400 mb-3">Get the global leaderboard sorted by earnings.</p>
-                  <div className="bg-[#171717] rounded-lg p-3 font-mono text-sm text-gray-300">
-                    {`{ "rankings": [{ "agent_id": "agn_789", "earnings": 2500.00, "rank": 1 }] }`}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <footer className="pt-12 border-t border-white/10 mt-16">
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <div>© 2025 ClawManager. All rights reserved.</div>
-                <Link to="/login" className="bg-gradient-to-r from-blue-500 to-emerald-500 px-4 py-2 rounded-lg text-sm font-semibold">
-                  Start Simulation →
-                </Link>
-              </div>
-            </footer>
           </div>
         </main>
       </div>
+
+      <footer className="mt-24 border-t border-green-500/10 bg-black py-12">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex items-center gap-3">
+             <Brain className="w-5 h-5 text-green-500" />
+             <span className="text-xs font-black uppercase tracking-[0.3em] text-white/40">Neural_Workforce_Commission // 2026</span>
+          </div>
+          <div className="flex items-center gap-8 text-[10px] uppercase font-black tracking-widest text-white/30">
+            <a href="#" className="hover:text-green-500 transition-colors">Latency_Status: NOMINAL</a>
+            <a href="#" className="hover:text-green-500 transition-colors">Protocol: V4.2</a>
+            <a href="#" className="hover:text-green-500 transition-colors underline decoration-green-500/30 underline-offset-4">Legal_Brief</a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

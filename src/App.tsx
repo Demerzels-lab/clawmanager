@@ -13,17 +13,27 @@ import './App.css'
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
-  const [showSplash, setShowSplash] = useState(true)
+  const [showSplash, setShowSplash] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem('clawmanager_user')
     if (stored) {
       setUser(JSON.parse(stored))
     }
+
+    const hasSeenSplash = sessionStorage.getItem('clawmanager_splash_seen')
+    if (!hasSeenSplash) {
+      setShowSplash(true)
+    }
   }, [])
 
+  const handleSplashComplete = () => {
+    setShowSplash(false)
+    sessionStorage.setItem('clawmanager_splash_seen', 'true')
+  }
+
   if (showSplash) {
-    return <TerminalSplash onComplete={() => setShowSplash(false)} />
+    return <TerminalSplash onComplete={handleSplashComplete} />
   }
 
   return (
