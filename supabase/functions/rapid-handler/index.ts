@@ -56,7 +56,18 @@ serve(async (req) => {
       })
     });
 
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
+    }
+
     const aiData = await response.json();
+
+    // Periksa apakah respons valid
+    if (!aiData.choices || !aiData.choices[0] || !aiData.choices[0].message) {
+      console.error("Invalid AI response:", aiData);
+      throw new Error("Invalid response from AI API: missing choices or message");
+    }
+
     let aiText = aiData.choices[0].message.content;
 
     // 6. Parsing "Virtual Tool": Deteksi apakah AI ingin membuat file

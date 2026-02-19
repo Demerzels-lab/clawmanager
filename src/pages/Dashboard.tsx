@@ -127,7 +127,9 @@ export default function Dashboard() {
     // 3. Buat prompt otomatis untuk mendelegasikan tugas ke AI
     const autoPrompt = `[SYSTEM_TASK_ASSIGNMENT] Please execute the following task for me: "${task.title}" (${task.sector} Sector). 
     Description: ${task.description}. 
-    Write a brief execution report and if necessary, use the CREATE_FILE tool to generate the result output.`
+    
+    INSTRUCTION: Since the description is generic, you MUST invent a specific, plausible scenario for this task yourself (for example: if it's coding in retail, write a simple python script to calculate discounts). 
+    Do not ask me for more details. Execute your invented scenario, write a brief execution report, and MUST use the CREATE_FILE tool to generate the final result.`
 
     // 4. Tampilkan pesan secara optimistik di UI Chat
     setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text: autoPrompt, timestamp: new Date().toISOString() }])
@@ -372,7 +374,7 @@ export default function Dashboard() {
                  {chatMessages.map(msg => (
                    <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                      <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${msg.sender === 'system' ? 'bg-transparent text-gray-500 text-xs text-center w-full' : msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-200'}`}>
-                       {msg.text}
+                       <div className="whitespace-pre-wrap text-sm">{msg.text}</div>
                      </div>
                    </div>
                  ))}
