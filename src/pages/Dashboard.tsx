@@ -395,7 +395,7 @@ export default function Dashboard() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {tasks.filter(t => t.status === 'open').slice(0, 30).map(task => (
+                {tasks.filter(t => t.status === 'open').slice(0, 150).map(task => (
                   <div key={task.id} className="bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 hover:border-green-500/50 transition-all duration-300 group relative overflow-hidden neon-border">
                     <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-30 transition-opacity">
                         <Target className="w-8 h-8 text-green-500" />

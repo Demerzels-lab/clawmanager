@@ -5,5 +5,5 @@ export interface AgentLog { id: number; tool: string; output: string; timestamp:
 
 // AI Integration Types
 export interface VirtualFile { id: string; name: string; content: string; updatedAt: string; }
-export interface ChatMessage { id: string; sender: 'user' | 'agent' | 'system'; text: string; timestamp: string; }
+export interface clawmanager_tasksChatMessage { id: string; sender: 'user' | 'agent' | 'system'; text: string; timestamp: string; }
 export interface AgentMemory { id: string; topic: string; details: string; timestamp: string; }
