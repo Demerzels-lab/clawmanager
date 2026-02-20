@@ -14,7 +14,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: User) => void }
     if (!username.trim()) { setError('Please enter a username'); return; }
     setLoading(true); setError('');
 
-    const newUser: User = { id: crypto.randomUUID(), username: username.trim(), balance: 100, tasksCompleted: 0, totalEarnings: 0 }
+    const newUser: User = { id: crypto.randomUUID(), username: username.trim(), balance: 100, tasksCompleted: 0, totalEarnings: 0, ownedTools: [] }
     localStorage.setItem('clawmanager_user', JSON.stringify(newUser))
     localStorage.setItem('clawmanager_transactions', JSON.stringify([]))
     localStorage.setItem('clawmanager_tasks', JSON.stringify(INITIAL_TASKS))

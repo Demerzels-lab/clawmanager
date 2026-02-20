@@ -16,7 +16,7 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([])
-  const [activeTab, setActiveTab] = useState<'dashboard'|'tasks'|'tools'|'workspace'|'inbox'|'memory'|'history'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard'|'tasks'|'tools'|'workspace'|'inbox'|'memory'|'history'|'active_mission'>('dashboard')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [runningTool, setRunningTool] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -36,31 +36,52 @@ export default function Dashboard() {
   // 'thinking' = normal chat, 'code' = coding/technical task, 'text' = writing/copywriting task
   const [animationType, setAnimationType] = useState<'thinking' | 'code' | 'text'>('thinking')
   const autoTaskRef = useRef<() => void>(() => {})
+
   // Keep auto-task fn fresh every render so it always captures latest state
   autoTaskRef.current = () => {
     if (!user) return
     const openTasks = tasks.filter(t => t.status === 'open')
     if (openTasks.length === 0) return
+    
     const task = openTasks[Math.floor(Math.random() * openTasks.length)]
-    const autoReward = parseFloat((Math.random() * 3.5 + 0.3).toFixed(2))
+    const toolMultiplier = 1 + ((user.ownedTools?.length || 0) * 0.15); // Setiap tool nambah +15% earning
+    const baseReward = Math.random() * 3.5 + 0.3;
+    const autoReward = parseFloat((baseReward * toolMultiplier).toFixed(2));
     const now = new Date().toISOString()
     const uname = user.username
-    const currentBalance = user.balance
-    setAgentLogs(prev => [...prev,
-      { id: Date.now(),     tool: 'AUTO_SCAN', output: `[NOVA] Sector_${task.sector.replace(/ /g,'_')} — bg op: "${task.title.substring(0, 40)}..."`, timestamp: now },
-      { id: Date.now() + 1, tool: 'CREDIT',    output: `Micro-contract settled autonomously: +Ð${autoReward}`, timestamp: now },
-    ])
+
+    // Tampilkan UI Nova sedang memproses
     setNovaStatus('auto')
-    setTimeout(() => setNovaStatus('idle'), 2500)
-    setUser(prev => {
-      if (!prev) return prev
-      const updated = { ...prev, balance: parseFloat((prev.balance + autoReward).toFixed(2)) }
-      localStorage.setItem('clawmanager_user', JSON.stringify(updated))
-      return updated
+    setAgentLogs(prev => [...prev,
+      { id: Date.now(), tool: 'AUTO_SCAN', output: `[NOVA] Sector_${task.sector.replace(/ /g,'_')} — bg op: "${task.title.substring(0, 40)}..."`, timestamp: now }
+    ])
+
+    // Panggil Edge Function Auto-Worker di latar belakang secara asinkron (tidak memblokir UI)
+    supabase.functions.invoke('auto-worker', {
+      body: { username: uname, taskTitle: task.title, sector: task.sector, reward: autoReward }
+    }).then(({ data, error }) => {
+      if (!error && data?.success) {
+        // Setelah AI selesai, update UI Balance & Notifikasi
+        setAgentLogs(prev => [...prev,
+          { id: Date.now() + 1, tool: 'CREDIT', output: `Micro-contract settled autonomously: +Ð${autoReward} | Output: ${data.file}`, timestamp: new Date().toISOString() }
+        ])
+        
+        setUser(prev => {
+          if (!prev) return prev
+          const updated = { ...prev, balance: parseFloat((prev.balance + autoReward).toFixed(2)) }
+          localStorage.setItem('clawmanager_user', JSON.stringify(updated))
+          return updated
+        })
+        
+        setEarnNotification({ amount: autoReward, task: task.title })
+        setTimeout(() => setEarnNotification(null), 4000)
+        
+        // Refresh data database agar file baru muncul di Workspace tanpa di-refresh manual
+        fetchDatabaseData()
+      }
+    }).finally(() => {
+      setTimeout(() => setNovaStatus('idle'), 1000)
     })
-    supabase.from('user_stats').update({ balance: parseFloat((currentBalance + autoReward).toFixed(2)) }).eq('username', uname)
-    setEarnNotification({ amount: autoReward, task: task.title })
-    setTimeout(() => setEarnNotification(null), 4000)
   }
 
   // Auto-scroll chat to bottom
@@ -68,7 +89,6 @@ export default function Dashboard() {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
-    // Added a small timeout to ensure scroll happens after layout paint
     const timeoutId = setTimeout(() => {
         if (chatContainerRef.current) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
@@ -80,7 +100,7 @@ export default function Dashboard() {
   const fetchDatabaseData = useCallback(async () => {
     if (!user) return
     
-    // 1. Ambil Stats dari Supabase (Balance, dll)
+    // 1. Fetch Stats from Supabase
     const { data: stats, error: statsError } = await supabase
       .from('user_stats')
       .select('*')
@@ -90,26 +110,26 @@ export default function Dashboard() {
     if (stats) {
       setUser(prev => prev ? { ...prev, balance: stats.balance, tasksCompleted: stats.tasks_completed, totalEarnings: stats.total_earnings } : null)
     } else if (statsError && statsError.code === 'PGRST116') {
-      // Jika user belum ada di DB, buatkan profil baru otomatis
       await supabase.from('user_stats').insert([{ username: user.username, balance: 100.00 }])
     }
 
-    // 2. Ambil Chat
+    // 2. Fetch Chat History
     const { data: chats } = await supabase.from('chat_messages')
       .select('*')
       .eq('username', user.username)
       .order('created_at', { ascending: true })
     if (chats) setChatMessages(chats.map(c => ({ id: c.id, sender: c.sender, text: c.text, timestamp: c.created_at })))
 
+    // 3. Fetch Files
     const { data: files } = await supabase.from('virtual_files')
       .select('*')
       .eq('username', user.username)
       .order('updated_at', { ascending: false })
     if (files) setVirtualFiles(files.map(f => ({ id: f.id, name: f.name, content: f.content, updatedAt: f.updated_at })))
 
+    // 4. Fetch Memories
     const { data: memories } = await supabase.from('agent_memories')
       .select('*')
-      // REMOVED: .eq('username', user.username) -> Global Collective Knowledge
       .order('created_at', { ascending: false })
     if (memories) setAgentMemories(memories.map(m => ({ id: m.id, topic: m.topic, details: m.details, timestamp: m.created_at })))
   }, [user])
@@ -120,7 +140,6 @@ export default function Dashboard() {
     const parsedUser = JSON.parse(storedUser)
     setUser(parsedUser)
     
-    // Initial fetch of tasks, transactions, and logs from local storage
     const storedTasks = localStorage.getItem('clawmanager_tasks')
     const storedTransactions = localStorage.getItem('clawmanager_transactions')
     const storedLogs = localStorage.getItem('clawmanager_logs')
@@ -130,14 +149,12 @@ export default function Dashboard() {
     setAgentLogs(storedLogs ? JSON.parse(storedLogs) : [])
   }, [navigate])
 
-  // 2. Fetch data HANYA jika user sudah terdefinisi
   useEffect(() => {
     if (user?.username) {
       fetchDatabaseData()
     }
   }, [user?.username, fetchDatabaseData])
 
-  // Boot AGENT_STREAMS entries + start Nova autonomous background loop
   useEffect(() => {
     if (!user?.username) return
     setAgentLogs(prev => prev.length > 0 ? prev : [
@@ -163,8 +180,6 @@ export default function Dashboard() {
     const currentUsername = user.username
     
     setChatInput('')
-
-    // 1. Add user message AND Nova placeholder in a single state update to guarantee order
     const msgId = `nova-reply-${Date.now()}`
     setChatMessages(prev => [
       ...prev,
@@ -172,14 +187,13 @@ export default function Dashboard() {
       { id: msgId, sender: 'agent', text: 'UPLINKING...', timestamp: new Date().toISOString() }
     ])
     setAnimatingMsgId(msgId)
-    setAnimationType('thinking') // plain chat = minimal thinking UI, no code terminal
+    setAnimationType('thinking')
     setAnimationText('')
     setNovaStatus('processing')
 
     const startTime = Date.now()
     let apiDone = false
 
-    // Fire the API call immediately in the background
     const apiPromise = supabase.functions.invoke('rapid-handler', {
       body: { text: userText, username: currentUsername, taskType: 'chat' }
     }).then(({ error }) => {
@@ -188,20 +202,10 @@ export default function Dashboard() {
       apiDone = true
     })
 
-    // For plain chat: simple pulsing dot animation, min 2s only
     const thinkingFrames = [
-      'Uplink established',
-      'Uplink established .',
-      'Uplink established . .',
-      'Uplink established . . .',
-      'Scanning neural deposits',
-      'Scanning neural deposits .',
-      'Scanning neural deposits . .',
-      'Scanning neural deposits . . .',
-      'Formulating response',
-      'Formulating response .',
-      'Formulating response . .',
-      'Formulating response . . .',
+      'Uplink established', 'Uplink established .', 'Uplink established . .', 'Uplink established . . .',
+      'Scanning neural deposits', 'Scanning neural deposits .', 'Scanning neural deposits . .', 'Scanning neural deposits . . .',
+      'Formulating response', 'Formulating response .', 'Formulating response . .', 'Formulating response . . .',
     ]
     let animLoop = true
     const runAnimation = async () => {
@@ -216,11 +220,7 @@ export default function Dashboard() {
     }
 
     try {
-      await Promise.all([
-        apiPromise,
-        runAnimation(),
-        new Promise(r => setTimeout(r, 2000))
-      ])
+      await Promise.all([ apiPromise, runAnimation(), new Promise(r => setTimeout(r, 2000)) ])
       setAnimatingMsgId(null)
       setNovaStatus('idle')
       fetchDatabaseData()
@@ -234,56 +234,33 @@ export default function Dashboard() {
     }
   }
 
-  const getToolOutput = (tool: string): string => {
-    const outputs: Record<string, string> = {
-      decide_activity: 'Decision: WORK - Proceeding with task completion',
-      submit_work: 'Work submitted for evaluation',
-      learn: 'Agent capabilities improved: +5% efficiency',
-      get_status: `Balance: $${user?.balance.toFixed(2) || '0.00'} | Tasks: ${user?.tasksCompleted || 0}`,
-      search_web: 'Search completed: Found 5 relevant results',
-      create_file: 'File created successfully',
-      execute_code: 'Code executed successfully in sandbox'
-    }
-    return outputs[tool] || 'Tool executed'
-  }
-
-  const executeTool = async (toolName: string) => {
-    if (!user || runningTool) return
+  const purchaseUpgrade = async (toolName: string) => {
+    if (!user) return
     const cost = TOOL_COSTS[toolName as keyof typeof TOOL_COSTS]
-    if (user.balance < cost) return alert('Insufficient balance!')
+    
+    // Validasi
+    if (user.balance < cost) return alert('Insufficient balance for this Neural Upgrade!')
+    if (user.ownedTools?.includes(toolName)) return alert('Module already integrated into Nova!')
     
     setRunningTool(toolName)
-    setToolResult(null)
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    await new Promise(resolve => setTimeout(resolve, 1500)) // Simulasi instalasi
     
     const timestamp = new Date().toISOString()
-    const output = getToolOutput(toolName)
-    const newLog: AgentLog = { id: Date.now(), tool: toolName, output, timestamp }
-    const newTransaction: Transaction = { id: Date.now(), timestamp, type: 'tool_usage', tool: toolName, amount: -cost, description: `Used ${toolName}` }
-    
-    // REDUCE BALANCE IN SUPABASE
+    const newOwnedTools = [...(user.ownedTools || []), toolName]
     const newBalance = user.balance - cost
+
+    const newLog: AgentLog = { id: Date.now(), tool: 'SYS_UPGRADE', output: `Module [${toolName.toUpperCase()}] successfully integrated. Auto-Earn Multiplier increased!`, timestamp }
+    const newTransaction: Transaction = { id: Date.now(), timestamp, type: 'upgrade_purchase', tool: toolName, amount: -cost, description: `Integrated ${toolName}` }
+    
+    // Update ke Supabase (Note: Tambahkan kolom 'owned_tools' tipe JSONB di table user_stats jika ingin permanen di DB, sementara kita simpan di LocalStorage)
     await supabase.from('user_stats').update({ balance: newBalance }).eq('username', user.username)
 
-    // REAL EFFECT: If create_file, actually add a node
-    if (toolName === 'create_file') {
-      await supabase.from('virtual_files').insert([{ 
-        name: `manual_node_${Date.now()}.sys`, 
-        content: `// MANUALLY SYNTHESIZED BY OPERATOR: ${user.username.toUpperCase()}\n// SYNCED AT: ${timestamp}\nSTATUS: OPERATIONAL`,
-        username: user.username
-      }])
-      fetchDatabaseData()
-    }
-
-    const updatedUser = { ...user, balance: newBalance }
-    const updatedLogs = [...agentLogs, newLog]
-    const updatedTransactions = [...transactions, newTransaction]
+    const updatedUser = { ...user, balance: newBalance, ownedTools: newOwnedTools }
     
     setUser(updatedUser)
-    setAgentLogs(updatedLogs)
-    setTransactions(updatedTransactions)
-    setToolResult({ name: toolName, output: output })
-    saveData(updatedUser, tasks, updatedTransactions, updatedLogs)
+    setAgentLogs(prev => [...prev, newLog])
+    setTransactions(prev => [...prev, newTransaction])
+    saveData(updatedUser, tasks, transactions, agentLogs) // Helper save
     setRunningTool(null)
   }
 
@@ -292,22 +269,15 @@ export default function Dashboard() {
     setRunningTool('completing')
     setCodingAnimation(true)
     
-    // 1. Redirect to COMM-LINK immediately
+    // 1. Redirect to ACTIVE MISSION SPLIT SCREEN immediately
     setSelectedTask(null)
-    setActiveTab('inbox')
-    const msgId = `nova-sync-${Date.now()}`
+    setActiveTab('active_mission')
     setAnimationText('')
     
-    // 2. Add user prompt AND Nova placeholder in a single update to guarantee order
+    // 2. Send prompt in the background silently
     const autoPrompt = `[SYSTEM_TASK_ASSIGNMENT] Please execute the following task: "${task.title}" in ${task.sector} Sector. Use CREATE_FILE and ADD_MEMORY.`
-    setChatMessages(prev => [
-      ...prev, 
-      { id: Date.now().toString(), sender: 'user', text: autoPrompt, timestamp: new Date().toISOString() },
-      { id: msgId, sender: 'agent', text: 'SYNCING...', timestamp: new Date().toISOString() }
-    ])
-    setAnimatingMsgId(msgId)
 
-    // Classify task animation type based on sector / title keywords
+    // Classify task animation type
     const WRITING_KEYWORDS = ['copywriting', 'copywrite', 'content', 'marketing', 'creative', 'writing', 'media', 'editorial', 'blog', 'article', 'social', 'copy']
     const isWritingTask = WRITING_KEYWORDS.some(k =>
       task.sector.toLowerCase().includes(k) || task.title.toLowerCase().includes(k)
@@ -319,12 +289,11 @@ export default function Dashboard() {
     const startTime = Date.now()
     let apiDone = false
 
-    // 3. Fire API call immediately in the background
+    // 3. Fire API call
     const apiPromise = supabase.functions.invoke('rapid-handler', {
       body: { text: autoPrompt, username: user.username, taskType: taskAnimType === 'text' ? 'writing_task' : 'code_task' }
     }).then(async ({ error }) => {
       if (error) throw error
-      // Update reward in parallel with animation finishing
       const newBalance = user.balance + task.reward
       const newTasksCompleted = user.tasksCompleted + 1
       const newTotalEarnings = user.totalEarnings + task.reward
@@ -341,106 +310,38 @@ export default function Dashboard() {
       apiDone = true
     })
 
-    // 4. Context-aware animation — rich real-looking content that types for 3+ seconds
+    // 4. Visual Animation Content
     const sectorClass = task.sector.replace(/[^a-zA-Z]/g, '')
     const jobTs = new Date().toISOString().split('T')[0]
 
     const codeSnippets = [
-      `# NOVA Agent Output\n`,
-      `# Task  : ${task.title}\n`,
-      `# Sector: ${task.sector} | Job #${task.id}\n`,
-      `# Date  : ${jobTs}\n`,
-      `# ─────────────────────────────────────────\n\n`,
-      `import asyncio\n`,
-      `import logging\n`,
-      `from dataclasses import dataclass, field\n`,
-      `from typing import Optional, List, Dict\n\n`,
+      `# NOVA Agent Output\n`, `# Task  : ${task.title}\n`, `# Sector: ${task.sector} | Job #${task.id}\n`,
+      `# Date  : ${jobTs}\n`, `# ─────────────────────────────────────────\n\n`,
+      `import asyncio\n`, `import logging\n`, `from dataclasses import dataclass, field\n`, `from typing import Optional, List, Dict\n\n`,
       `logger = logging.getLogger(__name__)\n\n`,
-      `@dataclass\n`,
-      `class ${sectorClass}Config:\n`,
-      `    task_id: int\n`,
-      `    sector: str = "${task.sector}"\n`,
-      `    operator: str = "${user.username}"\n`,
-      `    max_retries: int = 3\n`,
-      `    timeout: float = 30.0\n\n`,
-      `class ${sectorClass}Agent:\n`,
-      `    """Nova-generated agent for ${task.sector} ops."""\n\n`,
-      `    def __init__(self, config: ${sectorClass}Config):\n`,
-      `        self.config = config\n`,
-      `        self._session: Optional[object] = None\n`,
-      `        self._results: List[Dict] = []\n\n`,
-      `    async def execute(self) -> Dict:\n`,
-      `        logger.info(f"[NOVA] Executing: ${task.title}")\n`,
-      `        try:\n`,
-      `            await self._initialize_uplink()\n`,
-      `            result = await self._run_directive()\n`,
-      `            await self._commit_to_memory(result)\n`,
-      `            return {"status": "SUCCESS", "data": result}\n`,
-      `        except Exception as e:\n`,
-      `            logger.error(f"[NOVA] Uplink fault: {e}")\n`,
-      `            raise\n\n`,
-      `    async def _initialize_uplink(self):\n`,
-      `        logger.debug("[NOVA] Neural uplink initializing...")\n`,
-      `        await asyncio.sleep(0.1)\n`,
-      `        self._session = {"active": True, "sector": self.config.sector}\n\n`,
-      `    async def _run_directive(self) -> Dict:\n`,
-      `        # Core execution logic for ${task.sector}\n`,
-      `        output = await self._process_directive("${task.title}")\n`,
-      `        self._results.append(output)\n`,
-      `        return output\n\n`,
-      `    async def _process_directive(self, directive: str) -> Dict:\n`,
-      `        return {"directive": directive, "resolved": True}\n\n`,
-      `    async def _commit_to_memory(self, result: Dict):\n`,
-      `        logger.info("[NOVA] Committing result to neural grid...")\n\n`,
-      `if __name__ == "__main__":\n`,
-      `    cfg = ${sectorClass}Config(task_id=${task.id})\n`,
-      `    agent = ${sectorClass}Agent(cfg)\n`,
-      `    asyncio.run(agent.execute())\n`,
-      `\n# > UPLINK CONFIRMED — output committed to workspace\n`,
+      `@dataclass\n`, `class ${sectorClass}Config:\n`, `    task_id: int\n`, `    sector: str = "${task.sector}"\n`, `    operator: str = "${user.username}"\n\n`,
+      `class ${sectorClass}Agent:\n`, `    """Nova-generated agent for ${task.sector} ops."""\n\n`,
+      `    async def execute(self) -> Dict:\n`, `        logger.info(f"[NOVA] Executing: ${task.title}")\n`,
+      `        try:\n`, `            result = await self._run_directive()\n`, `            await self._commit_to_memory(result)\n`, `            return {"status": "SUCCESS"}\n`,
+      `        except Exception as e:\n`, `            raise\n\n`,
+      `# > UPLINK CONFIRMED — output committed to workspace\n`,
     ]
 
     const writingSnippets = [
-      `> NOVA WRITER MODE — ACTIVATED\n`,
-      `> Brief  : "${task.title}"\n`,
-      `> Sector : ${task.sector.toUpperCase()}\n`,
-      `> Target : conversion-optimised audience\n`,
-      `> Date   : ${jobTs}\n`,
-      `> ─────────────────────────────────────────\n\n`,
-      `[HOOK]\n`,
-      `In a world where every data point matters,\n`,
-      `your ${task.sector} strategy can't afford to be\n`,
-      `ordinary. It needs to be surgical.\n\n`,
-      `[PROBLEM_STATEMENT]\n`,
-      `Most ${task.sector} initiatives fail not because\n`,
-      `the product is wrong — but because the message\n`,
-      `never lands at the right neural frequency.\n\n`,
-      `[VALUE_PROPOSITION]\n`,
-      `${task.title} changes that. By combining\n`,
-      `data-driven insight with precision copy,\n`,
-      `every word earns its place on the grid.\n\n`,
-      `[BODY — FEATURE BREAKDOWN]\n`,
-      `• Deep sector expertise in ${task.sector}\n`,
-      `• Tone-matched for target demographics\n`,
-      `• Conversion hooks embedded at key intervals\n`,
-      `• Neural-tested for retention and recall\n\n`,
-      `[SOCIAL_PROOF]\n`,
-      `Operators who deployed this framework saw\n`,
-      `a measurable uplift in engagement within\n`,
-      `the first 72-hour uplink cycle.\n\n`,
-      `[CALL_TO_ACTION]\n`,
-      `Don't just enter the market. Own the signal.\n`,
-      `Initialize your ${task.sector} protocol today.\n\n`,
+      `> NOVA WRITER MODE — ACTIVATED\n`, `> Brief  : "${task.title}"\n`, `> Sector : ${task.sector.toUpperCase()}\n`,
+      `> Target : conversion-optimised audience\n`, `> Date   : ${jobTs}\n`, `> ─────────────────────────────────────────\n\n`,
+      `[HOOK]\n`, `In a world where every data point matters,\n`, `your ${task.sector} strategy can't afford to be\n`, `ordinary. It needs to be surgical.\n\n`,
+      `[PROBLEM_STATEMENT]\n`, `Most ${task.sector} initiatives fail not because\n`, `the product is wrong — but because the message\n`, `never lands at the right neural frequency.\n\n`,
+      `[VALUE_PROPOSITION]\n`, `${task.title} changes that. By combining\n`, `data-driven insight with precision copy,\n`, `every word earns its place on the grid.\n\n`,
       `> COPY SYNTHESIZED — committing to workspace...\n`,
     ]
 
     const activeSnippets = taskAnimType === 'text' ? writingSnippets : codeSnippets
-    // Per-char speed: fast enough to feel live, slow enough to read
-    const charDelay = () => Math.random() * 6 + 2   // 2–8 ms
+    const charDelay = () => Math.random() * 6 + 2
 
     let animLoop = true
     const runAnimation = async () => {
       let currentText = ''
-      // First pass — always runs fully for the live-typing feel
       for (const snippet of activeSnippets) {
         if (!animLoop) break
         for (const char of snippet) {
@@ -451,13 +352,10 @@ export default function Dashboard() {
         }
         await new Promise(r => setTimeout(r, 60))
       }
-      // After first pass, loop a short suffix until API + 3s minimum both done
       while (animLoop) {
         const elapsed = Date.now() - startTime
         if (apiDone && elapsed >= 3000) { animLoop = false; break }
-        const suffix = taskAnimType === 'text'
-          ? '\n[ Cross-referencing market data... ]\n'
-          : '\n# Optimising output matrix...\n'
+        const suffix = taskAnimType === 'text' ? '\n[ Cross-referencing market data... ]\n' : '\n# Optimising output matrix...\n'
         for (const char of suffix) {
           if (!animLoop) break
           currentText += char
@@ -469,21 +367,13 @@ export default function Dashboard() {
     }
 
     try {
-      await Promise.all([
-        apiPromise,
-        runAnimation(),
-        new Promise(r => setTimeout(r, 4000))
-      ])
-      setAnimatingMsgId(null)
+      await Promise.all([ apiPromise, runAnimation(), new Promise(r => setTimeout(r, 4000)) ])
       setNovaStatus('idle')
-      fetchDatabaseData()
+      await fetchDatabaseData() // Fetch the exact real file just generated!
     } catch (error) {
       animLoop = false
       console.error('Task Execution Error:', error)
-      setAnimatingMsgId(null)
       setNovaStatus('idle')
-      setChatMessages(prev => prev.filter(msg => msg.id !== msgId))
-      setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'system', text: `ERROR: Uplink failed for ${task.title}.`, timestamp: new Date().toISOString() }])
     } finally {
       setRunningTool(null)
       setCodingAnimation(false)
@@ -500,6 +390,21 @@ export default function Dashboard() {
     { name: 'execute_code', desc: 'Run code in sandbox', cost: TOOL_COSTS.execute_code, icon: Terminal },
   ]
 
+  const navItems = [
+    { id: 'dashboard',  icon: BarChart3,     label: 'OPERATIONS' },
+    { id: 'inbox',      icon: MessageSquare, label: 'COMM-LINK // NOVA' },
+    { id: 'tasks',      icon: Target,        label: 'TASK MARKET' },
+    { id: 'memory',     icon: Database,      label: 'NEURAL MEMORY' },
+    { id: 'workspace',  icon: Folder,        label: 'V-WORKSPACE' },
+    { id: 'tools',      icon: Brain,         label: 'AGENT TOOLS' },
+    { id: 'history',    icon: Clock,         label: 'LOG HISTORY' }
+  ]
+
+  // Add active mission to sidebar if active
+  if (activeTab === 'active_mission' || runningTool === 'completing') {
+    navItems.splice(2, 0, { id: 'active_mission', icon: Activity, label: 'ACTIVE MISSION' })
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('clawmanager_user')
     navigate('/login')
@@ -509,7 +414,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#020202] text-white flex font-mono selection:bg-green-500 selection:text-black">
-      {/* INTERACTIVE BACKGROUND */}
       <InteractiveBackground />
 
       {/* Sidebar */}
@@ -527,21 +431,14 @@ export default function Dashboard() {
         </div>
 
         <nav className="p-4 space-y-1 mt-4">
-          {[
-            { id: 'dashboard',  icon: BarChart3,     label: 'OPERATIONS' },
-            { id: 'inbox',      icon: MessageSquare,  label: 'COMM-LINK // NOVA' },
-            { id: 'tasks',      icon: Target,         label: 'TASK MARKET' },
-            { id: 'memory',     icon: Database,       label: 'NEURAL MEMORY' },
-            { id: 'workspace',  icon: Folder,         label: 'V-WORKSPACE' },
-            { id: 'tools',      icon: Brain,          label: 'AGENT TOOLS' },
-            { id: 'history',    icon: Clock,          label: 'LOG HISTORY' }
-          ].map((item) => (
+          {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as any)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-sm transition-all duration-200 group relative overflow-hidden ${
                 activeTab === item.id 
                   ? 'bg-green-500/10 text-green-400' 
+                  : item.id === 'active_mission' ? 'text-amber-500 bg-amber-500/10 border border-amber-500/20 animate-pulse'
                   : 'text-zinc-500 hover:text-green-300 hover:bg-green-500/5'
               }`}
             >
@@ -601,8 +498,8 @@ export default function Dashboard() {
           {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-              {/* ── NOVA STATUS BANNER ─────────────────────── */}
-              <div className="flex items-center gap-4 p-4 bg-[#050505]/80 border border-green-500/20 rounded-sm backdrop-blur-md relative overflow-hidden">
+              {/* NOVA STATUS BANNER */}
+              <div className="flex items-center gap-4 p-4 bg-[#050505]/80 border border-green-500/20 rounded-sm backdrop-blur-md relative overflow-hidden cursor-pointer hover:border-green-500/50 transition-colors" onClick={() => runningTool === 'completing' ? setActiveTab('active_mission') : setActiveTab('inbox')}>
                 <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-transparent pointer-events-none" />
                 <div className="w-14 h-14 rounded-sm overflow-hidden border-2 border-green-500 shadow-[0_0_20px_rgba(57,255,20,0.4)] shrink-0 relative">
                   <img src="/logo.jpeg" alt="Nova" className="w-full h-full object-cover" />
@@ -612,11 +509,11 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-base font-black text-white tracking-[0.2em] uppercase italic">NOVA</span>
                     <span className={`text-[9px] px-2 py-0.5 rounded-sm font-black uppercase tracking-widest transition-all duration-300 ${
-                      novaStatus === 'auto'       ? 'bg-green-500/20 text-green-400 border border-green-500/40 shadow-[0_0_8px_rgba(57,255,20,0.4)] animate-pulse' :
+                      novaStatus === 'auto' || runningTool === 'completing' ? 'bg-green-500/20 text-green-400 border border-green-500/40 shadow-[0_0_8px_rgba(57,255,20,0.4)] animate-pulse' :
                       novaStatus === 'processing' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
                       'bg-zinc-900 text-zinc-500 border border-zinc-800'
                     }`}>
-                      {novaStatus === 'auto' ? '● EXECUTING' : novaStatus === 'processing' ? '● PROCESSING' : '● STANDBY'}
+                      {novaStatus === 'auto' ? '● EXECUTING' : runningTool === 'completing' ? '● MISSION ACTIVE' : novaStatus === 'processing' ? '● PROCESSING' : '● STANDBY'}
                     </span>
                   </div>
                   <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tighter truncate">
@@ -629,10 +526,10 @@ export default function Dashboard() {
                   <div className="text-[9px] text-zinc-600 uppercase font-bold">deposits</div>
                 </div>
                 <button
-                  onClick={() => setActiveTab('inbox')}
+                  onClick={(e) => { e.stopPropagation(); setActiveTab(runningTool === 'completing' ? 'active_mission' : 'inbox'); }}
                   className="px-4 py-2 bg-green-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-sm hover:bg-green-400 transition-all cyber-button shadow-[0_0_15px_rgba(57,255,20,0.3)] shrink-0"
                 >
-                  Talk_to_Nova →
+                  {runningTool === 'completing' ? 'View_Mission →' : 'Talk_to_Nova →'}
                 </button>
               </div>
 
@@ -685,38 +582,163 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-[#050505]/60 rounded-sm border border-green-500/10 p-6 neon-border">
-                  <h3 className="text-[10px] font-black mb-4 text-white tracking-[0.3em] uppercase italic flex items-center gap-2">
-                     <Zap className="w-3 h-3 text-green-500" /> Quick_Execute
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {tools.slice(0, 4).map(tool => (
-                      <button 
-                        key={tool.name} 
-                        onClick={() => executeTool(tool.name)} 
-                        disabled={runningTool !== null} 
-                        className="group relative p-3 rounded-sm bg-green-500/5 border border-green-500/10 hover:border-green-500/40 transition-all text-left disabled:opacity-30 overflow-hidden"
-                      >
-                        <div className="absolute inset-0 bg-green-500/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                        <div className="relative z-10 font-mono text-[10px] text-green-500/70 group-hover:text-green-400 mb-1 font-black uppercase tracking-tighter">{tool.name}</div>
-                        <div className="relative z-10 text-[10px] text-zinc-600 group-hover:text-zinc-400 font-bold italic">-Ð{tool.cost.toFixed(2)}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-[#050505]/60 rounded-sm border border-green-500/10 p-6 neon-border flex flex-col justify-center items-center text-center relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1614728263952-84ea256f9679?q=80&w=1000&auto=format&fit=crop')] bg-cover bg-center opacity-5 group-hover:opacity-10 transition-opacity duration-500" />
-                    <Brain className="w-12 h-12 text-green-500/20 mb-4 animate-pulse relative z-10" />
-                    <h4 className="text-[10px] font-black text-green-500/40 tracking-[0.4em] uppercase mb-2 relative z-10">Neural_Status</h4>
-                    <p className="text-xs text-zinc-500 font-mono max-w-[200px] relative z-10">Level 4 Agent synchronized with Operator <span className="text-green-500/60">{user.username}</span></p>
-                </div>
-              </div>
             </div>
           )}
 
+          {/* TAB AI: ACTIVE MISSION (SPLIT SCREEN) */}
+          {activeTab === 'active_mission' && (
+             <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
+               <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
+                  <div className="flex items-center gap-3">
+                    <Activity className={`w-6 h-6 ${runningTool === 'completing' ? 'text-amber-500 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
+                    <h2 className={`text-xl font-black italic tracking-tighter ${runningTool === 'completing' ? 'text-amber-400' : 'text-white'}`}>
+                      ACTIVE_MISSION // {runningTool === 'completing' ? 'EXECUTING' : 'COMPLETED'}
+                    </h2>
+                  </div>
+                  {runningTool !== 'completing' && (
+                    <button onClick={() => setActiveTab('workspace')} className="px-4 py-2 bg-green-500/10 text-green-500 border border-green-500/30 rounded-sm text-[10px] font-black uppercase hover:bg-green-500 hover:text-black transition-all">
+                      Go to Workspace →
+                    </button>
+                  )}
+               </div>
+
+               <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-[500px]">
+                 
+                 {/* LEFT: Agent Thought Process (Terminal) */}
+                 <div className="flex-1 lg:w-1/2 bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 flex flex-col neon-border relative overflow-hidden">
+                   <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-green-500/30 to-transparent" />
+                   <div className="text-[10px] text-green-500/40 font-black uppercase tracking-widest border-b border-green-500/10 pb-3 mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Terminal className="w-3 h-3" />
+                        <span>Agent_Logic_Stream</span>
+                      </div>
+                      {runningTool === 'completing' ? <span className="text-amber-500 animate-pulse">● LIVE UPLINK</span> : <span className="text-green-500">● IDLE</span>}
+                   </div>
+                   <div className="flex-1 overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed relative">
+                     {runningTool === 'completing' || codingAnimation ? (
+                         <div className="text-green-400 bg-black/50 p-4 rounded-sm border border-green-500/10 shadow-[inset_0_0_20px_rgba(34,197,94,0.05)] min-h-full">
+                             {animationType === 'code' ? (
+                                 <pre className="whitespace-pre-wrap">{animationText}<span className="inline-block w-2 h-4 bg-green-500 animate-pulse align-middle ml-0.5">_</span></pre>
+                             ) : (
+                                 <div className="whitespace-pre-wrap text-zinc-300">{animationText}<span className="inline-block w-1.5 h-3.5 bg-amber-400/80 animate-pulse align-middle ml-0.5" /></div>
+                             )}
+                         </div>
+                     ) : (
+                         <div className="text-green-500 flex flex-col items-center justify-center h-full opacity-60 space-y-4">
+                             <CheckCircle className="w-12 h-12 mb-2 shadow-[0_0_15px_rgba(34,197,94,0.4)] rounded-full" />
+                             <div className="text-center">
+                                <div className="uppercase tracking-[0.3em] font-black text-sm mb-1">Mission Accomplished</div>
+                                <div className="text-zinc-500 text-[10px]">Contract settled and output committed to workspace.</div>
+                             </div>
+                         </div>
+                     )}
+                   </div>
+                 </div>
+
+                 {/* RIGHT: Live Workspace Preview */}
+                 <div className="flex-1 lg:w-1/2 bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 flex flex-col neon-border bg-[linear-gradient(rgba(34,197,94,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
+                   <div className="text-[10px] text-green-500/40 font-black uppercase tracking-widest border-b border-green-500/10 pb-3 mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Folder className="w-3 h-3" />
+                        <span>Live_Output_Preview</span>
+                      </div>
+                      {runningTool !== 'completing' && virtualFiles.length > 0 && (
+                        <span className="text-green-600 font-mono italic truncate max-w-[150px]">{virtualFiles[0].name}</span>
+                      )}
+                   </div>
+                   <div className="flex-1 overflow-y-auto custom-scrollbar font-mono text-[11px] text-green-100/90 whitespace-pre-wrap bg-black/40 p-4 border border-green-500/10 rounded-sm">
+                     {runningTool === 'completing' || codingAnimation ? (
+                         <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-70">
+                             <div className="relative">
+                               <Activity className="w-10 h-10 text-amber-500 animate-pulse" />
+                               <div className="absolute inset-0 bg-amber-500/20 blur-xl rounded-full" />
+                             </div>
+                             <span className="text-amber-500/70 uppercase tracking-[0.4em] font-black animate-pulse">Synthesizing Node...</span>
+                         </div>
+                     ) : virtualFiles.length > 0 ? (
+                         <pre style={{ tabSize: 4 }} className="whitespace-pre-wrap selection:bg-green-500/30">{virtualFiles[0].content}</pre>
+                     ) : (
+                         <div className="h-full flex items-center justify-center">
+                            <span className="text-zinc-600 italic uppercase tracking-[0.2em] text-[10px]">Awaiting Synthesis</span>
+                         </div>
+                     )}
+                   </div>
+                 </div>
+
+               </div>
+             </div>
+          )}
+
+          {/* TAB AI: Inbox (Cleaned up for chat only) */}
+          {activeTab === 'inbox' && (
+             <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
+             <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
+                <MessageSquare className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_COMM_LINK</h2>
+             </div>
+             <div className="flex-1 bg-[#050505]/60 rounded-sm border border-green-500/10 flex flex-col min-h-[500px] neon-border overflow-hidden">
+               <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar bg-black/40">
+                 {chatMessages.map((msg, msgIdx) => {
+                   const isAnimatingBubble = animatingMsgId !== null && msgIdx === chatMessages.length - 1 && msg.sender === 'agent'
+                   return (
+                   <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                     {msg.sender === 'system' && !isAnimatingBubble ? (
+                        <div className="w-full flex justify-center py-2">
+                            <span className="text-[9px] font-black text-green-900 uppercase tracking-[0.3em] font-mono animate-pulse">{msg.text}</span>
+                        </div>
+                     ) : (
+                        <div className={`max-w-[85%] rounded-sm px-4 py-3 border relative group ${
+                            msg.sender === 'user' 
+                                ? 'bg-green-500/10 border-green-500/30 text-green-100 ml-12' 
+                                : 'bg-black/80 border-white/10 text-zinc-300 mr-12 shadow-[0_5px_15px_rgba(0,0,0,0.4)]'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-1.5 border-b border-white/5 pb-1">
+                            <div className={`w-1.5 h-1.5 rounded-full ${msg.sender === 'user' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`} />
+                            <span className="text-[8px] font-black uppercase tracking-widest opacity-40">
+                              {msg.sender === 'user' ? 'Operator' : 'Nova_v4'}
+                            </span>
+                            <span className="text-[8px] opacity-20 ml-auto font-mono">{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                          </div>
+                          
+                          <div className="whitespace-pre-wrap text-[11px] font-mono tracking-tighter leading-relaxed">
+                            {isAnimatingBubble ? (
+                                <div className="flex items-center gap-3 py-2 px-1">
+                                  <div className="flex gap-1">
+                                    {[0,1,2].map(i => (
+                                      <div key={i} className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                                    ))}
+                                  </div>
+                                  <span className="text-[10px] text-green-400/70 font-mono tracking-wide">{animationText || 'Uplink established . . .'}</span>
+                                </div>
+                            ) : (
+                               msg.text.split('**').map((part, i) => i % 2 === 1 ? <b key={i} className="text-green-400 font-extrabold">{part}</b> : part)
+                            )}
+                          </div>
+                        </div>
+                     )}
+                   </div>
+                 )
+                 })} 
+               </div>
+               <div className="p-4 bg-[#050505] border-t border-green-500/10 flex gap-4">
+                 <input 
+                    type="text" 
+                    value={chatInput} 
+                    onChange={(e) => setChatInput(e.target.value)} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
+                    className="flex-1 bg-black/50 border border-green-500/20 rounded-sm px-4 py-3 text-[11px] font-mono text-green-400 placeholder:text-green-900 focus:outline-none focus:border-green-500/50 uppercase" 
+                    placeholder="Enter command sequence..." 
+                  />
+                 <button onClick={handleSendMessage} className="bg-green-500/10 border border-green-500/40 p-3 rounded-sm hover:bg-green-500 hover:text-black transition-all group cyber-button">
+                    <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform"/>
+                 </button>
+               </div>
+             </div>
+           </div>
+          )}
+
+          {/* OTHER TABS: Tasks, Workspace, Memory, Tools, History (KEPT UNCHANGED) */}
+          
           {/* TAB: Task Market */}
           {activeTab === 'tasks' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -725,11 +747,7 @@ export default function Dashboard() {
                     <h2 className="text-xl font-black text-white italic tracking-tighter">Available_Contracts</h2>
                     <span className="text-[10px] text-green-500/40 font-mono uppercase tracking-[0.2em]">{tasks.filter(t => t.status === 'open').length} ACTIVE NODES IN MARKET</span>
                 </div>
-                <div className="flex gap-2">
-                    {[1, 2, 3].map(i => <div key={i} className="w-8 h-[2px] bg-green-500/20" />)}
-                </div>
               </div>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {tasks.filter(t => t.status === 'open').slice(0, 150).map(task => (
                   <div key={task.id} className="bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 hover:border-green-500/50 transition-all duration-300 group relative overflow-hidden neon-border">
@@ -755,59 +773,131 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* TAB: Tools */}
+          {/* TAB AI: Workspace */}
+          {activeTab === 'workspace' && (
+             <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
+             <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
+                <Folder className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                <h2 className="text-xl font-black text-white italic tracking-tighter">VIRTUAL_DATA_STORAGE</h2>
+             </div>
+             <div className="flex-1 flex gap-6 min-h-[500px]">
+               <div className="w-1/3 bg-[#050505]/80 rounded-sm border border-green-500/10 p-3 space-y-1 neon-border custom-scrollbar overflow-y-auto">
+                 {virtualFiles.map(f => (
+                    <button 
+                        key={f.id} 
+                        onClick={() => setSelectedFile(f)} 
+                        className={`w-full text-left p-3 rounded-sm text-[10px] font-mono uppercase tracking-tighter flex items-center justify-between group transition-all ${
+                            selectedFile?.id === f.id ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'text-zinc-500 hover:bg-green-500/5 hover:text-zinc-300'
+                        }`}
+                    >
+                        <div className="flex items-center gap-2">
+                           <FileText className={`w-3 h-3 ${selectedFile?.id === f.id ? 'text-green-400' : 'text-zinc-700'}`}/>
+                           {f.name}
+                        </div>
+                    </button>
+                 ))}
+               </div>
+               <div className="flex-1 bg-[#050505]/80 rounded-sm border border-green-500/10 p-6 font-mono text-[11px] text-zinc-400 whitespace-pre-wrap overflow-y-auto custom-scrollbar neon-border bg-[linear-gradient(rgba(34,197,94,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
+                 {selectedFile ? (
+                    <div className="animate-in fade-in duration-300">
+                        <div className="pb-4 mb-4 border-b border-green-500/10 flex justify-between items-center">
+                            <span className="text-green-500/40 text-[9px] font-black uppercase tracking-[0.2em]">FILE://{selectedFile.name}</span>
+                            <span className="text-green-900 text-[8px]">{new Date(selectedFile.updatedAt).toISOString()}</span>
+                        </div>
+                        <pre className="whitespace-pre-wrap font-mono text-[11px] text-green-100/90 leading-relaxed selection:bg-green-500/30" style={{ tabSize: 4 }}>
+                            {selectedFile.content}
+                        </pre>
+                    </div>
+                 ) : (
+                    <div className="h-full flex items-center justify-center text-green-900/30 uppercase tracking-[0.4em] italic font-black">
+                        NO_DATA_MOUNTED
+                    </div>
+                 )}
+               </div>
+             </div>
+           </div>
+          )}
+
+          {/* TAB AI: Memory */}
+          {activeTab === 'memory' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
+                <Database className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"/>
+                <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_DEPOSITS</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {agentMemories.map(m => (
+                  <div key={m.id} className="bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 neon-border group hover:border-green-500/40 transition-all">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-black text-[11px] text-green-400 tracking-widest uppercase">{m.topic}</h3>
+                        <div className="w-2 h-2 rounded-full bg-green-500/40 animate-pulse" />
+                    </div>
+                    <p className="text-[11px] text-zinc-500 font-mono uppercase tracking-tighter leading-snug">{m.details}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Tools (NEURAL UPGRADES) */}
           {activeTab === 'tools' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
               <div className="flex flex-col border-l-4 border-green-500 pl-4 py-2">
-                <h2 className="text-2xl font-black text-white tracking-tighter italic">Neural_Toolkit</h2>
-                <p className="text-[10px] text-green-500/50 font-mono tracking-[0.2em] uppercase">Advanced Agent Capabilities // v4.0.2</p>
+                <h2 className="text-2xl font-black text-white tracking-tighter italic">Neural_Upgrades</h2>
+                <p className="text-[10px] text-green-500/50 font-mono tracking-[0.2em] uppercase">Install modules to increase Nova's base efficiency (+15% Multiplier per Module)</p>
+              </div>
+
+              {/* Tampilkan Multiplier Saat Ini */}
+              <div className="bg-[#050505]/80 rounded-sm border border-green-500/30 p-4 flex items-center gap-4 neon-border">
+                <Activity className="w-8 h-8 text-green-500 animate-pulse" />
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Current Yield Multiplier</div>
+                  <div className="text-xl font-black text-green-400">
+                    x{(1 + ((user.ownedTools?.length || 0) * 0.15)).toFixed(2)}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {tools.map(tool => (
-                  <div key={tool.name} className="bg-[#050505]/80 rounded-sm border border-green-500/10 p-6 neon-border relative group overflow-hidden">
-                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-green-500/5 rounded-full blur-2xl group-hover:bg-green-500/10 transition-all" />
+                {tools.map(tool => {
+                  const isOwned = user.ownedTools?.includes(tool.name)
+                  return (
+                  <div key={tool.name} className={`bg-[#050505]/80 rounded-sm border ${isOwned ? 'border-amber-500/30' : 'border-green-500/10'} p-6 relative group overflow-hidden transition-all`}>
                     <div className="flex items-start justify-between mb-6 relative z-10">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-sm bg-green-500/5 border border-green-500/20 flex items-center justify-center group-hover:border-green-500/50 transition-colors shadow-[inset_0_0_10px_rgba(34,197,94,0.1)]">
-                            <tool.icon className="w-7 h-7 text-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]" />
+                        <div className={`w-14 h-14 rounded-sm bg-green-500/5 border ${isOwned ? 'border-amber-500' : 'border-green-500/20'} flex items-center justify-center`}>
+                            <tool.icon className={`w-7 h-7 ${isOwned ? 'text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]' : 'text-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]'}`} />
                         </div>
                         <div>
-                            <h3 className="font-black text-white tracking-widest uppercase italic group-hover:text-green-400 transition-colors">{tool.name}</h3>
+                            <h3 className={`font-black tracking-widest uppercase italic ${isOwned ? 'text-amber-400' : 'text-white'}`}>{tool.name}</h3>
                             <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tighter mt-1">{tool.desc}</p>
                         </div>
                       </div>
                     </div>
+                    
                     <div className="flex items-center justify-between relative z-10 mt-4 pt-4 border-t border-green-500/5">
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 font-bold uppercase">EXECUTION_COST</span>
+                        <span className="text-[9px] text-zinc-600 font-bold uppercase">INSTALLATION_COST</span>
                         <span className="text-green-500/80 font-black text-sm tabular-nums">Ð{tool.cost.toFixed(2)}</span>
                       </div>
-                      <button 
-                        onClick={() => executeTool(tool.name)} 
-                        disabled={runningTool !== null || user.balance < tool.cost} 
-                        className="px-6 py-2 text-[10px] font-black uppercase tracking-[0.2em] bg-green-500/10 text-green-500 border border-green-500/20 hover:bg-green-500 hover:text-black transition-all disabled:opacity-30 cyber-button"
-                      >
-                        {runningTool === tool.name ? 'EXECUTING...' : 'Execute'}
-                      </button>
+                      
+                      {isOwned ? (
+                         <button disabled className="px-6 py-2 text-[10px] font-black uppercase tracking-[0.2em] bg-amber-500/10 text-amber-500 border border-amber-500/30 cursor-not-allowed">
+                           INTEGRATED
+                         </button>
+                      ) : (
+                        <button 
+                          onClick={() => purchaseUpgrade(tool.name)} 
+                          disabled={runningTool !== null || user.balance < tool.cost} 
+                          className="px-6 py-2 text-[10px] font-black uppercase tracking-[0.2em] bg-green-500/10 text-green-500 border border-green-500/20 hover:bg-green-500 hover:text-black transition-all disabled:opacity-30 cyber-button"
+                        >
+                          {runningTool === tool.name ? 'INSTALLING...' : 'Acquire'}
+                        </button>
+                      )}
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
-
-              {/* NEW TOOL TERMINAL OUTPUT */}
-              {toolResult && (
-                <div className="bg-black/90 border border-green-500/40 p-4 rounded-sm font-mono animate-in slide-in-from-bottom-2">
-                    <div className="flex items-center gap-2 mb-2 text-green-500/40 text-[9px] font-black uppercase tracking-widest border-b border-green-500/10 pb-2">
-                        <Zap className="w-3 h-3 text-amber-500 animate-pulse" />
-                        Terminal_Output_{toolResult.name}.log
-                    </div>
-                    <div className="text-[10px] text-green-400">
-                        <span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> <span className="text-white">NANOBOT@EXEC:</span> {toolResult.output}
-                        {toolResult.name === 'create_file' && <div className="mt-1 text-amber-500 italic">{" >> New Node successfully synthesized in workspace!"}</div>}
-                    </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -846,218 +936,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* TAB AI: Memory */}
-          {activeTab === 'memory' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
-                <Database className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"/>
-                <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_DEPOSITS</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {agentMemories.map(m => (
-                  <div key={m.id} className="bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 neon-border group hover:border-green-500/40 transition-all">
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-black text-[11px] text-green-400 tracking-widest uppercase">{m.topic}</h3>
-                        <div className="w-2 h-2 rounded-full bg-green-500/40 animate-pulse" />
-                    </div>
-                    <p className="text-[11px] text-zinc-500 font-mono uppercase tracking-tighter leading-snug">{m.details}</p>
-                    <div className="mt-4 pt-4 border-t border-green-500/5 text-right">
-                        <span className="text-[8px] text-green-900 font-bold">{new Date(m.timestamp).toISOString()}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* TAB AI: Inbox */}
-          {activeTab === 'inbox' && (
-             <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
-             <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
-                <MessageSquare className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_COMM_LINK</h2>
-             </div>
-             <div className="flex-1 bg-[#050505]/60 rounded-sm border border-green-500/10 flex flex-col min-h-[500px] neon-border overflow-hidden">
-               <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar bg-black/40">
-                 {chatMessages.map((msg, msgIdx) => {
-                   // Animation anchors to the very last message in the array while animatingMsgId is active.
-                   // This is robust against ID mismatches caused by fetchDatabaseData replacing local placeholders.
-                   const isAnimatingBubble = animatingMsgId !== null && msgIdx === chatMessages.length - 1 && msg.sender === 'agent'
-                   return (
-                   <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                     {msg.sender === 'system' && !isAnimatingBubble ? (
-                        <div className="w-full flex justify-center py-2">
-                            <span className="text-[9px] font-black text-green-900 uppercase tracking-[0.3em] font-mono animate-pulse">{msg.text}</span>
-                        </div>
-                     ) : (
-                        <div className={`max-w-[85%] rounded-sm px-4 py-3 border relative group ${
-                            msg.sender === 'user' 
-                                ? 'bg-green-500/10 border-green-500/30 text-green-100 ml-12' 
-                                : 'bg-black/80 border-white/10 text-zinc-300 mr-12 shadow-[0_5px_15px_rgba(0,0,0,0.4)]'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1.5 border-b border-white/5 pb-1">
-                            <div className={`w-1.5 h-1.5 rounded-full ${msg.sender === 'user' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`} />
-                            <span className="text-[8px] font-black uppercase tracking-widest opacity-40">
-                              {msg.sender === 'user' ? 'Operator' : 'Nova_v4'}
-                            </span>
-                            <span className="text-[8px] opacity-20 ml-auto font-mono">{new Date(msg.timestamp).toLocaleTimeString()}</span>
-                          </div>
-                          
-                          <div className="whitespace-pre-wrap text-[11px] font-mono tracking-tighter leading-relaxed">
-                            {isAnimatingBubble ? (
-                              <>
-                                {/* ── THINKING: plain chat ─────────────────── */}
-                                {animationType === 'thinking' && (
-                                  <div className="flex items-center gap-3 py-2 px-1">
-                                    <div className="flex gap-1">
-                                      {[0,1,2].map(i => (
-                                        <div key={i} className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-                                      ))}
-                                    </div>
-                                    <span className="text-[10px] text-green-400/70 font-mono tracking-wide">{animationText || 'Uplink established . . .'}</span>
-                                  </div>
-                                )}
-
-                                {/* ── CODE TERMINAL: technical / code task ─── */}
-                                {animationType === 'code' && (
-                                  <div className="text-green-400 bg-black/80 p-4 border border-green-500/30 rounded shadow-[0_0_20px_rgba(34,197,94,0.1)] overflow-hidden relative">
-                                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-green-500/20 animate-pulse" />
-                                    <div className="flex items-center gap-2 mb-3 border-b border-green-500/10 pb-2">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-red-500/50" />
-                                      <div className="w-1.5 h-1.5 rounded-full bg-yellow-500/50" />
-                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500/50" />
-                                      <span className="text-[7px] text-green-500/40 ml-2 font-black uppercase tracking-widest">NOVA_TASK_EXECUTION — CODE_MODE</span>
-                                    </div>
-                                    <pre className="font-mono text-[10px] text-green-300 whitespace-pre-wrap leading-relaxed">
-                                      {animationText}
-                                      <span className="inline-block w-2 h-4 bg-green-500 animate-pulse align-middle ml-0.5" />
-                                    </pre>
-                                    <div className="mt-3 flex items-center gap-2 opacity-40">
-                                      <Activity className="w-2.5 h-2.5 animate-spin text-green-500" />
-                                      <span className="text-[7px] text-green-500/50 uppercase italic font-bold">Compiling output nodes...</span>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* ── DOCUMENT DRAFT: writing / copywriting task ── */}
-                                {animationType === 'text' && (
-                                  <div className="bg-[#0a0c0a]/90 border border-green-500/20 rounded overflow-hidden shadow-[0_0_15px_rgba(34,197,94,0.07)]">
-                                    <div className="flex items-center gap-2 px-4 py-2 bg-green-500/5 border-b border-green-500/10">
-                                      <FileText className="w-3 h-3 text-green-500/60" />
-                                      <span className="text-[7px] text-green-500/40 font-black uppercase tracking-widest">NOVA_COPYWRITER_MODE — DRAFTING</span>
-                                      <span className="ml-auto animate-pulse text-[7px] text-amber-500/60 font-bold">● LIVE</span>
-                                    </div>
-                                    <div className="p-4 font-mono text-[11px] text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                                      {animationText}
-                                      <span className="inline-block w-1.5 h-3.5 bg-amber-400/80 animate-pulse align-middle ml-0.5" />
-                                    </div>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                               msg.text.split('**').map((part, i) => i % 2 === 1 ? <b key={i} className="text-green-400 font-extrabold">{part}</b> : part)
-                            )}
-                          </div>
-
-                          {/* Action Button if file created */}
-                          {!animatingMsgId && msg.sender !== 'user' && (msg.text.includes('[CREATE_FILE]') || msg.text.includes('synthesis')) && (
-                            <button 
-                              onClick={() => {
-                                setActiveTab('workspace');
-                                // Scroll to top or find latest file
-                              }}
-                              className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full text-[9px] font-black text-green-400 hover:bg-green-500 hover:text-black transition-all"
-                            >
-                              <Folder className="w-3 h-3" />
-                              VIEW_GENERATED_NODE
-                            </button>
-                          )}
-                        </div>
-                     )}
-                   </div>
-                 ) // end return
-                 })} 
-               </div>
-               <div className="p-4 bg-[#050505] border-t border-green-500/10 flex gap-4">
-                 <input 
-                    type="text" 
-                    value={chatInput} 
-                    onChange={(e) => setChatInput(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
-                    className="flex-1 bg-black/50 border border-green-500/20 rounded-sm px-4 py-3 text-[11px] font-mono text-green-400 placeholder:text-green-900 focus:outline-none focus:border-green-500/50 uppercase" 
-                    placeholder="Enter command sequence..." 
-                  />
-                 <button onClick={handleSendMessage} className="bg-green-500/10 border border-green-500/40 p-3 rounded-sm hover:bg-green-500 hover:text-black transition-all group cyber-button">
-                    <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform"/>
-                 </button>
-               </div>
-             </div>
-           </div>
-          )}
-
-          {/* TAB AI: Workspace */}
-          {activeTab === 'workspace' && (
-             <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
-             <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
-                <Folder className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                <h2 className="text-xl font-black text-white italic tracking-tighter">VIRTUAL_DATA_STORAGE</h2>
-             </div>
-             <div className="flex-1 flex gap-6 min-h-[500px]">
-               <div className="w-1/3 bg-[#050505]/80 rounded-sm border border-green-500/10 p-3 space-y-1 neon-border custom-scrollbar overflow-y-auto">
-                 {virtualFiles.map(f => (
-                    <button 
-                        key={f.id} 
-                        onClick={() => setSelectedFile(f)} 
-                        className={`w-full text-left p-3 rounded-sm text-[10px] font-mono uppercase tracking-tighter flex items-center justify-between group transition-all ${
-                            selectedFile?.id === f.id ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'text-zinc-500 hover:bg-green-500/5 hover:text-zinc-300'
-                        }`}
-                    >
-                        <div className="flex items-center gap-2">
-                           <FileText className={`w-3 h-3 ${selectedFile?.id === f.id ? 'text-green-400' : 'text-zinc-700'}`}/>
-                           {f.name}
-                        </div>
-                        <div className="w-1 h-1 rounded-full bg-green-500/0 group-hover:bg-green-500/40 transition-all" />
-                    </button>
-                 ))}
-               </div>
-               <div className="flex-1 bg-[#050505]/80 rounded-sm border border-green-500/10 p-6 font-mono text-[11px] text-zinc-400 whitespace-pre-wrap overflow-y-auto custom-scrollbar neon-border bg-[linear-gradient(rgba(34,197,94,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
-                 {codingAnimation ? (
-                    <div className="animate-in fade-in duration-300">
-                        <div className="pb-4 mb-4 border-b border-green-500/10 flex justify-between items-center">
-                            <span className="text-amber-500 text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                                <Activity className="w-3 h-3 animate-pulse" />
-                                SYNTHESIZING_NODE...
-                            </span>
-                            <span className="text-green-900 text-[8px] animate-pulse">UPLINK_ACTIVE</span>
-                        </div>
-                        <pre className="whitespace-pre-wrap font-mono text-[11px] text-green-400/90 leading-relaxed">
-                            {animationText}
-                            <span className="animate-pulse">_</span>
-                        </pre>
-                    </div>
-                 ) : selectedFile ? (
-                    <div className="animate-in fade-in duration-300">
-                        <div className="pb-4 mb-4 border-b border-green-500/10 flex justify-between items-center">
-                            <span className="text-green-500/40 text-[9px] font-black uppercase tracking-[0.2em]">FILE://{selectedFile.name}</span>
-                            <span className="text-green-900 text-[8px]">{new Date(selectedFile.updatedAt).toISOString()}</span>
-                        </div>
-                        <pre className="whitespace-pre-wrap font-mono text-[11px] text-green-100/90 leading-relaxed selection:bg-green-500/30" style={{ tabSize: 4 }}>
-                            {selectedFile.content}
-                        </pre>
-                    </div>
-                 ) : (
-                    <div className="h-full flex items-center justify-center text-green-900/30 uppercase tracking-[0.4em] italic font-black">
-                        NO_DATA_MOUNTED
-                    </div>
-                 )}
-               </div>
-             </div>
-           </div>
-          )}
         </div>
       </main>
 
-      {/* ── EARN NOTIFICATION TOAST ─────────────────────── */}
+      {/* EARN NOTIFICATION TOAST */}
       {earnNotification && (
         <div className="fixed bottom-8 right-8 z-[200] animate-in slide-in-from-bottom-4 fade-in duration-300 pointer-events-none">
           <div className="bg-[#050505] border border-green-500 rounded-sm px-5 py-4 shadow-[0_0_50px_rgba(57,255,20,0.5),0_20px_40px_rgba(0,0,0,0.8)] max-w-xs backdrop-blur-md overflow-hidden relative">
@@ -1081,7 +963,6 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-50 p-6 animate-in fade-in zoom-in-95 duration-200">
           <div className="bg-[#050505] rounded-sm border border-green-500/30 max-w-lg w-full p-8 shadow-[0_0_100px_rgba(34,197,94,0.15)] relative overflow-hidden neon-border">
             <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-green-500 to-transparent animate-pulse" />
-            
             <div className="flex items-center justify-between mb-8">
               <div className="flex flex-col">
                 <span className="text-[9px] text-green-500/40 font-black uppercase tracking-[0.3em]">CONTRACT_ENCRYPTION_ID: {selectedTask.id}</span>
@@ -1089,14 +970,12 @@ export default function Dashboard() {
               </div>
               <button onClick={() => setSelectedTask(null)} className="p-2 rounded-sm hover:bg-red-500/10 text-zinc-600 hover:text-red-500 transition-colors border border-transparent hover:border-red-500/20"><X className="w-5 h-5" /></button>
             </div>
-
             <div className="p-4 bg-green-500/5 border border-green-500/10 rounded-sm mb-8">
                 <p className="text-zinc-400 text-xs font-mono mb-4 leading-relaxed uppercase tracking-tighter">{selectedTask.description}</p>
                 <div className="flex items-center gap-2">
                     <span className="text-[9px] font-black px-2 py-0.5 rounded-sm bg-green-500/10 text-green-500 border border-green-500/20 uppercase tracking-widest">{selectedTask.sector}</span>
                 </div>
             </div>
-
             <div className="flex items-center justify-between mb-8 border-y border-green-500/10 py-6">
               <div className="flex flex-col">
                 <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mb-1">CONTRACT_VALUE</span>
@@ -1107,29 +986,12 @@ export default function Dashboard() {
                 <span className="text-lg font-black text-white/80 tabular-nums uppercase">Ð{user.balance.toFixed(2)}</span>
               </div>
             </div>
-
-            {runningTool === 'completing' ? (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between text-[10px] font-black text-green-500/80 uppercase tracking-widest">
-                    <div className="flex items-center gap-2 italic">
-                        <Activity className="w-4 h-4 animate-spin" />
-                        Initializing Neural Link...
-                    </div>
-                    <span>{Math.floor(Math.random() * 100)}%</span>
-                </div>
-                <div className="h-1 bg-green-900/20 rounded-full overflow-hidden border border-green-500/10">
-                    <div className="h-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,1)] animate-[pulse_1s_infinite]" style={{ width: '60%' }}></div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-4">
-                <button onClick={() => setSelectedTask(null)} className="flex-1 px-6 py-4 rounded-sm border border-green-500/20 text-zinc-500 font-black text-[10px] uppercase tracking-[0.2em] hover:bg-green-500/5 hover:text-zinc-300 transition-all uppercase">Cancel_Link</button>
-                <button onClick={() => completeTask(selectedTask)} className="flex-[2] px-6 py-4 rounded-sm bg-green-500 text-black font-black text-[11px] uppercase tracking-[0.3em] transition-all hover:bg-green-400 hover:shadow-[0_0_20px_rgba(34,197,94,0.4)] cyber-button">
-                  Establish_Link
-                </button>
-              </div>
-            )}
-            
+            <div className="flex gap-4">
+              <button onClick={() => setSelectedTask(null)} className="flex-1 px-6 py-4 rounded-sm border border-green-500/20 text-zinc-500 font-black text-[10px] uppercase tracking-[0.2em] hover:bg-green-500/5 hover:text-zinc-300 transition-all uppercase">Cancel_Link</button>
+              <button onClick={() => completeTask(selectedTask)} className="flex-[2] px-6 py-4 rounded-sm bg-green-500 text-black font-black text-[11px] uppercase tracking-[0.3em] transition-all hover:bg-green-400 hover:shadow-[0_0_20px_rgba(34,197,94,0.4)] cyber-button">
+                Establish_Link
+              </button>
+            </div>
             <div className="mt-8 text-center">
                 <span className="text-[8px] text-green-900 font-bold uppercase tracking-[0.5em] animate-pulse">AUTHORIZATION_REQUIRED_BY_CLAW_OS</span>
             </div>
@@ -1138,4 +1000,4 @@ export default function Dashboard() {
       )}
     </div>
   )
-  }
+}
