@@ -22,8 +22,22 @@ module.exports = {
 				ring: 'hsl(var(--ring))',
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
+				// Override Tailwind green with toxic/neon green cyberpunk palette
+				green: {
+					50:  '#f0fff0',
+					100: '#ccffb8',
+					200: '#99ff78',
+					300: '#66ff3e',
+					400: '#4dff22',
+					500: '#39FF14',
+					600: '#2ed410',
+					700: '#22a30c',
+					800: '#157508',
+					900: '#0b4705',
+					950: '#052400',
+				},
 				primary: {
-					DEFAULT: '#2B5D3A',
+					DEFAULT: '#39FF14',
 					foreground: 'hsl(var(--primary-foreground))',
 				},
 				secondary: {
@@ -31,7 +45,7 @@ module.exports = {
 					foreground: 'hsl(var(--secondary-foreground))',
 				},
 				accent: {
-					DEFAULT: '#F5A623',
+					DEFAULT: '#39FF14',
 					foreground: 'hsl(var(--accent-foreground))',
 				},
 				destructive: {

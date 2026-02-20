@@ -7,12 +7,13 @@ interface TerminalSplashProps {
 export function TerminalSplash({ onComplete }: TerminalSplashProps) {
   const [bootLines, setBootLines] = useState<string[]>([]);
   const [currentLine, setCurrentLine] = useState(0);
+  const [fading, setFading] = useState(false);
 
   const bootSequence = [
-    "CLAW MANAGER OS v3.1.2",
+    "CLAWMGR OS v3.1.2 — INIT",
     "Connecting to Hyper-Net Neural Gateway...",
     "Securing encrypted P2P tunnel...",
-    "Loading Agent Core: [BELLE]...",
+    "Loading Agent Core: [NOVA]...",
     "Neural weights synchronization complete.",
     "System online. Welcome, Operator."
   ];
@@ -25,15 +26,26 @@ export function TerminalSplash({ onComplete }: TerminalSplashProps) {
       }, 250); 
       return () => clearTimeout(timer);
     } else {
-      const timer = setTimeout(() => {
-        onComplete();
-      }, 800);
-      return () => clearTimeout(timer);
+      // Pause briefly, then start fade-out, then call onComplete
+      const pauseTimer = setTimeout(() => {
+        setFading(true);
+        setTimeout(() => onComplete(), 600);
+      }, 600);
+      return () => clearTimeout(pauseTimer);
     }
   }, [currentLine, onComplete]);
 
   return (
-    <div className="fixed inset-0 bg-[#020202] flex flex-col items-center justify-center z-[100] font-mono text-green-400 overflow-hidden">
+    <div
+      className="fixed inset-0 bg-[#020202] flex flex-col items-center justify-center z-[100] font-mono text-green-400 overflow-hidden"
+      style={{
+        transition: 'opacity 0.6s ease, transform 0.6s ease, filter 0.6s ease',
+        opacity: fading ? 0 : 1,
+        transform: fading ? 'scale(1.04)' : 'scale(1)',
+        filter: fading ? 'blur(8px)' : 'blur(0px)',
+        pointerEvents: fading ? 'none' : 'auto',
+      }}
+    >
       {/* BACKGROUND EFFECTS */}
       <div className="absolute inset-0 cyber-grid opacity-20 pointer-events-none"></div>
       
@@ -62,9 +74,9 @@ export function TerminalSplash({ onComplete }: TerminalSplashProps) {
              <div className="absolute inset-0 bg-green-500/10 animate-pulse"></div>
             {/* Placeholder for Belle Agent Image */}
             <div className="w-full h-full bg-[#0a0a0a] flex items-center justify-center text-green-500 font-bold text-xs text-center p-2 opacity-80">
-              [ AGENT_BELLE_LINKED ]
+              [ SYSTEM_LINKED ]
             </div>
-            <img src="/belle-agent.jpeg" alt="Belle Agent" className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-screen" />
+            <img src="/logo.jpeg" alt="ClawManager Logo" className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-screen" />
             <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-green-500/40 to-transparent"></div>
           </div>
         </div>

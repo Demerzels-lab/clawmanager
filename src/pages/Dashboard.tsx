@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { InteractiveBackground } from '../components/InteractiveBackground'
 import {
   Terminal, Zap, Brain, BookOpen, Menu, X, Search,
   Activity, Wallet, Clock, TrendingUp, RotateCcw, CheckCircle, XCircle, Target, BarChart3,
@@ -30,6 +31,35 @@ export default function Dashboard() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [agentMemories, setAgentMemories] = useState<AgentMemory[]>([])
   const [chatInput, setChatInput] = useState('')
+  const [earnNotification, setEarnNotification] = useState<{ amount: number; task: string } | null>(null)
+  const [novaStatus, setNovaStatus] = useState<'idle' | 'processing' | 'auto'>('idle')
+  const autoTaskRef = useRef<() => void>(() => {})
+  // Keep auto-task fn fresh every render so it always captures latest state
+  autoTaskRef.current = () => {
+    if (!user) return
+    const openTasks = tasks.filter(t => t.status === 'open')
+    if (openTasks.length === 0) return
+    const task = openTasks[Math.floor(Math.random() * openTasks.length)]
+    const autoReward = parseFloat((Math.random() * 3.5 + 0.3).toFixed(2))
+    const now = new Date().toISOString()
+    const uname = user.username
+    const currentBalance = user.balance
+    setAgentLogs(prev => [...prev,
+      { id: Date.now(),     tool: 'AUTO_SCAN', output: `[NOVA] Sector_${task.sector.replace(/ /g,'_')} — bg op: "${task.title.substring(0, 40)}..."`, timestamp: now },
+      { id: Date.now() + 1, tool: 'CREDIT',    output: `Micro-contract settled autonomously: +Ð${autoReward}`, timestamp: now },
+    ])
+    setNovaStatus('auto')
+    setTimeout(() => setNovaStatus('idle'), 2500)
+    setUser(prev => {
+      if (!prev) return prev
+      const updated = { ...prev, balance: parseFloat((prev.balance + autoReward).toFixed(2)) }
+      localStorage.setItem('clawmanager_user', JSON.stringify(updated))
+      return updated
+    })
+    supabase.from('user_stats').update({ balance: parseFloat((currentBalance + autoReward).toFixed(2)) }).eq('username', uname)
+    setEarnNotification({ amount: autoReward, task: task.title })
+    setTimeout(() => setEarnNotification(null), 4000)
+  }
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -104,6 +134,19 @@ export default function Dashboard() {
       fetchDatabaseData()
     }
   }, [user?.username, fetchDatabaseData])
+
+  // Boot AGENT_STREAMS entries + start Nova autonomous background loop
+  useEffect(() => {
+    if (!user?.username) return
+    setAgentLogs(prev => prev.length > 0 ? prev : [
+      { id: -3, tool: 'BOOT',   output: `NOVA_v4.0.5 — Neural link initialized // OPERATOR: ${user.username.toUpperCase()}`, timestamp: new Date(Date.now() - 3000).toISOString() },
+      { id: -2, tool: 'SYNC',   output: 'Global knowledge base synced — collective memory ready', timestamp: new Date(Date.now() - 2000).toISOString() },
+      { id: -1, tool: 'STATUS', output: 'All sectors online. Autonomous routines armed. Awaiting directive...', timestamp: new Date(Date.now() - 500).toISOString() },
+    ])
+    const first    = setTimeout(() => autoTaskRef.current(), 12000)
+    const interval = setInterval(() => autoTaskRef.current(), 45000)
+    return () => { clearTimeout(first); clearInterval(interval) }
+  }, [user?.username])
 
   const saveData = useCallback((newUser: User, newTasks: Task[], newTransactions: Transaction[], newLogs: AgentLog[]) => {
     localStorage.setItem('clawmanager_user', JSON.stringify(newUser))
@@ -300,6 +343,8 @@ export default function Dashboard() {
       setUser(updatedUser)
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'completed' } : t))
       saveData(updatedUser, tasks, transactions, agentLogs)
+      setEarnNotification({ amount: task.reward, task: task.title })
+      setTimeout(() => setEarnNotification(null), 5000)
     }).finally(() => {
       apiDone = true
     })
@@ -393,16 +438,15 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#020202] text-white flex font-mono selection:bg-green-500 selection:text-black">
-      {/* BACKGROUND EFFECTS */}
-      <div className="fixed inset-0 cyber-grid opacity-10 pointer-events-none z-0"></div>
-      <div className="fixed inset-0 bg-gradient-to-tr from-green-500/5 via-transparent to-transparent pointer-events-none z-0"></div>
+      {/* INTERACTIVE BACKGROUND */}
+      <InteractiveBackground />
 
       {/* Sidebar */}
       <aside className={`fixed left-0 top-0 bottom-0 w-64 bg-[#050505]/95 backdrop-blur-xl border-r border-green-500/20 transition-transform duration-300 z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} shadow-[10px_0_30px_rgba(0,0,0,0.5)]`}>
         <div className="p-6 border-b border-green-500/10">
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/')}>
-            <div className="w-10 h-10 bg-green-500 rounded-sm flex items-center justify-center shadow-[0_0_15px_rgba(34,197,94,0.4)] group-hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transition-all duration-300 transform -rotate-3 group-hover:rotate-0">
-              <Zap className="w-6 h-6 text-black fill-current" />
+            <div className="w-10 h-10 rounded-sm overflow-hidden border border-green-500/40 shadow-[0_0_15px_rgba(57,255,20,0.4)] group-hover:shadow-[0_0_25px_rgba(57,255,20,0.7)] transition-all duration-300 transform -rotate-3 group-hover:rotate-0 shrink-0">
+              <img src="/logo.jpeg" alt="CLAWMGR" className="w-full h-full object-cover" />
             </div>
             <div className="flex flex-col">
               <span className="font-black text-xl tracking-tighter text-white group-hover:text-green-400 transition-colors">CLAW<span className="text-green-500">MGR</span></span>
@@ -413,13 +457,13 @@ export default function Dashboard() {
 
         <nav className="p-4 space-y-1 mt-4">
           {[
-            { id: 'dashboard', icon: BarChart3, label: 'OPERATIONS' }, 
-            { id: 'tasks', icon: Target, label: 'TASK MARKET' }, 
-            { id: 'tools', icon: Brain, label: 'AGENT TOOLS' }, 
-            { id: 'workspace', icon: Folder, label: 'V-WORKSPACE' }, 
-            { id: 'inbox', icon: MessageSquare, label: 'COMM-LINK' }, 
-            { id: 'memory', icon: Database, label: 'NEURAL MEMORY' },
-            { id: 'history', icon: Clock, label: 'LOG HISTORY' }
+            { id: 'dashboard',  icon: BarChart3,     label: 'OPERATIONS' },
+            { id: 'inbox',      icon: MessageSquare,  label: 'COMM-LINK // NOVA' },
+            { id: 'tasks',      icon: Target,         label: 'TASK MARKET' },
+            { id: 'memory',     icon: Database,       label: 'NEURAL MEMORY' },
+            { id: 'workspace',  icon: Folder,         label: 'V-WORKSPACE' },
+            { id: 'tools',      icon: Brain,          label: 'AGENT TOOLS' },
+            { id: 'history',    icon: Clock,          label: 'LOG HISTORY' }
           ].map((item) => (
             <button
               key={item.id}
@@ -485,6 +529,42 @@ export default function Dashboard() {
           {/* TAB: Dashboard Asli */}
           {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+              {/* ── NOVA STATUS BANNER ─────────────────────── */}
+              <div className="flex items-center gap-4 p-4 bg-[#050505]/80 border border-green-500/20 rounded-sm backdrop-blur-md relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-transparent pointer-events-none" />
+                <div className="w-14 h-14 rounded-sm overflow-hidden border-2 border-green-500 shadow-[0_0_20px_rgba(57,255,20,0.4)] shrink-0 relative">
+                  <img src="/logo.jpeg" alt="Nova" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-green-500/5 animate-pulse" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-base font-black text-white tracking-[0.2em] uppercase italic">NOVA</span>
+                    <span className={`text-[9px] px-2 py-0.5 rounded-sm font-black uppercase tracking-widest transition-all duration-300 ${
+                      novaStatus === 'auto'       ? 'bg-green-500/20 text-green-400 border border-green-500/40 shadow-[0_0_8px_rgba(57,255,20,0.4)] animate-pulse' :
+                      novaStatus === 'processing' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
+                      'bg-zinc-900 text-zinc-500 border border-zinc-800'
+                    }`}>
+                      {novaStatus === 'auto' ? '● EXECUTING' : novaStatus === 'processing' ? '● PROCESSING' : '● STANDBY'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tighter truncate">
+                    Neural Agent v4.0.5 — Autonomous mode active // Operator: <span className="text-green-500/60">{user.username}</span>
+                  </p>
+                </div>
+                <div className="text-right shrink-0 mr-4">
+                  <div className="text-[9px] text-green-500/40 uppercase font-bold tracking-widest mb-0.5">Knowledge</div>
+                  <div className="text-2xl font-black text-green-500 neon-glow tabular-nums">{agentMemories.length}</div>
+                  <div className="text-[9px] text-zinc-600 uppercase font-bold">deposits</div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('inbox')}
+                  className="px-4 py-2 bg-green-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-sm hover:bg-green-400 transition-all cyber-button shadow-[0_0_15px_rgba(57,255,20,0.3)] shrink-0"
+                >
+                  Talk_to_Nova →
+                </button>
+              </div>
+
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
@@ -871,6 +951,25 @@ export default function Dashboard() {
           )}
         </div>
       </main>
+
+      {/* ── EARN NOTIFICATION TOAST ─────────────────────── */}
+      {earnNotification && (
+        <div className="fixed bottom-8 right-8 z-[200] animate-in slide-in-from-bottom-4 fade-in duration-300 pointer-events-none">
+          <div className="bg-[#050505] border border-green-500 rounded-sm px-5 py-4 shadow-[0_0_50px_rgba(57,255,20,0.5),0_20px_40px_rgba(0,0,0,0.8)] max-w-xs backdrop-blur-md overflow-hidden relative">
+            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-green-500 to-transparent" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-500/10 border border-green-500/40 rounded-sm flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(57,255,20,0.3)]">
+                <TrendingUp className="w-5 h-5 text-green-500" />
+              </div>
+              <div>
+                <div className="text-[9px] text-green-500/50 font-black uppercase tracking-[0.3em] mb-0.5">NOVA AUTO-EARN</div>
+                <div className="text-xl font-black text-green-400 neon-glow tracking-tighter">+Ð{earnNotification.amount.toFixed(2)}</div>
+                <div className="text-[9px] text-zinc-500 font-mono truncate max-w-[190px] uppercase tracking-tight">{earnNotification.task.substring(0, 35)}...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Task Modal (Popup) */}
       {selectedTask && (

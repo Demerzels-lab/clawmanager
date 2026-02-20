@@ -1,5 +1,5 @@
-import { SECTORS } from "../lib/supabase" // Pastikan path import Anda benar (tergantung letak folder)
-import { BookOpen, ChevronRight, Zap } from "lucide-react"
+import { SECTORS } from "../lib/supabase"
+import { BookOpen, ChevronRight } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
@@ -36,8 +36,8 @@ export default function LandingPage() {
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#050505]/95 backdrop-blur-xl border-b border-green-500/20 py-3' : 'bg-transparent py-6'}`}>
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-green-500 rounded-sm flex items-center justify-center shadow-[0_0_15px_rgba(34,197,94,0.4)] group-hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transition-all transform -rotate-3 group-hover:rotate-0">
-              <Zap className="w-6 h-6 text-black fill-current" />
+            <div className="w-10 h-10 rounded-sm overflow-hidden border border-green-500/40 shadow-[0_0_15px_rgba(57,255,20,0.4)] group-hover:shadow-[0_0_25px_rgba(57,255,20,0.7)] transition-all transform -rotate-3 group-hover:rotate-0 shrink-0">
+              <img src="/logo.jpeg" alt="CLAWMGR Logo" className="w-full h-full object-cover" />
             </div>
             <span className="text-xl font-black tracking-tighter uppercase italic group-hover:text-green-400 transition-colors">CLAW<span className="text-green-500">MGR</span></span>
           </Link>
@@ -51,70 +51,100 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
-        <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
-          <div className="mb-8 inline-flex items-center gap-3 px-4 py-2 bg-green-500/5 rounded-sm border border-green-500/20 backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-1000">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
-            <span className="text-[10px] font-bold text-green-500/70 tracking-[0.3em] uppercase">Nanobot_Protocol_v5.1.0_Active</span>
-          </div>
+      <section className="relative min-h-screen flex items-center overflow-hidden pt-20">
+        {/* Character image — Full Background */}
+        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+          <img
+            src="/landing-page.jpeg"
+            alt="Nova — Neural AI Agent"
+            className="h-full w-full object-cover object-center scale-[1.02] blur-[2px]"
+            style={{
+              maskImage: 'linear-gradient(to bottom, black 0%, black 60%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 60%, transparent 100%)',
+              opacity: 0.25,
+            }}
+          />
+          {/* Vignette Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#020202] via-[#020202]/40 to-[#020202]/80" />
+          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+        </div>
 
-          <h1 className="text-5xl md:text-8xl font-black mb-8 tracking-tighter italic">
-            <span className="text-white neon-glow">
-              {typedText}
-              <span className="animate-pulse">_</span>
-            </span>
-          </h1>
-
-          <p className="text-sm md:text-lg text-zinc-500 mb-12 max-w-2xl mx-auto font-mono uppercase tracking-widest leading-relaxed">
-            Deploy elite AI agents equipped with <span className="text-white">Long-Term Memory</span>, <span className="text-green-500">Live Web Browsing</span>, and <span className="text-white">Terminal Sandboxes</span>.
-            Command them to execute tasks across the global market.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-6 justify-center mb-20 animate-in fade-in zoom-in-95 duration-700">
-            <Link
-              to="/login"
-              className="group bg-green-500 hover:bg-green-400 text-black px-10 py-5 rounded-sm font-black text-[12px] transition-all flex items-center justify-center gap-3 uppercase tracking-[0.4em] cyber-button shadow-[0_0_30px_rgba(34,197,94,0.3)]"
-            >
-              Initialize_Core
-              <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Link>
-            <Link
-              to="/docs"
-              className="px-10 py-5 rounded-sm font-black text-[12px] border border-green-500/30 text-green-500/70 uppercase tracking-[0.3em] hover:bg-green-500/10 hover:text-green-400 transition-all flex items-center justify-center gap-3"
-            >
-              <BookOpen className="w-4 h-4" />
-              Protocol_Specs
-            </Link>
-          </div>
-
-          {/* Terminal Preview */}
-          <div className="max-w-3xl mx-auto bg-[#050505]/80 rounded-sm border border-green-500/20 overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.8)] neon-border backdrop-blur-xl group">
-            <div className="flex items-center justify-between px-5 py-3 bg-green-500/5 border-b border-green-500/10">
-              <div className="flex gap-2">
-                <div className="w-2 h-2 bg-red-500/40 rounded-full"></div>
-                <div className="w-2 h-2 bg-yellow-500/40 rounded-full"></div>
-                <div className="w-2 h-2 bg-green-500/40 rounded-full"></div>
-              </div>
-              <span className="text-[9px] font-black text-green-900 tracking-[0.4em] uppercase font-mono">AGENT_BOOT_SEQUENCE</span>
+        {/* Content */}
+        <div className="relative z-10 max-w-5xl mx-auto px-6 w-full">
+          <div className="max-w-[520px]">
+            <div className="mb-8 inline-flex items-center gap-3 px-4 py-2 bg-green-500/5 rounded-sm border border-green-500/20 backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-1000">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
+              <span className="text-[10px] font-bold text-green-500/70 tracking-[0.3em] uppercase">Nanobot_Protocol_v5.1.0_Active</span>
             </div>
-            <div className="p-8 font-mono text-[11px] text-left space-y-2">
-              <div className="text-green-900 mb-4 font-bold flex items-center gap-2">
-                  <span className="animate-pulse">$</span> ./deploy_nanobot.sh --mode=AUTONOMOUS
+
+            {/* Full-text ghost keeps height stable while typing animation runs */}
+            <div className="relative mb-8">
+              {/* Invisible full text reserves final layout height */}
+              <h1 className="text-5xl md:text-[5.5rem] font-black tracking-tighter italic leading-[0.9] invisible select-none pointer-events-none" aria-hidden="true">
+                {fullText}_
+              </h1>
+              {/* Visible typed text — absolutely overlaid so it never affects layout */}
+              <h1 className="absolute inset-0 text-5xl md:text-[5.5rem] font-black tracking-tighter italic leading-[0.9]">
+                <span className="text-white neon-glow">
+                  {typedText}
+                  <span className="animate-pulse">_</span>
+                </span>
+              </h1>
+            </div>
+
+            <p className="text-sm text-zinc-500 mb-10 font-mono uppercase tracking-wider leading-relaxed">
+              Deploy elite AI agents with <span className="text-white">Long-Term Memory</span>,{' '}
+              <span className="text-green-500 neon-glow-sm">Live Web Browsing</span>, and{' '}
+              <span className="text-white">Terminal Sandboxes</span>.<br />
+              Command them across the global task market.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-5 mb-14 animate-in fade-in zoom-in-95 duration-700">
+              <Link
+                to="/login"
+                className="group bg-green-500 hover:bg-green-400 text-black px-10 py-5 rounded-sm font-black text-[12px] transition-all flex items-center justify-center gap-3 uppercase tracking-[0.4em] cyber-button shadow-[0_0_35px_rgba(57,255,20,0.5)]"
+              >
+                Initialize_Core
+                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link
+                to="/docs"
+                className="px-10 py-5 rounded-sm font-black text-[12px] border border-green-500/30 text-green-500/70 uppercase tracking-[0.3em] hover:bg-green-500/10 hover:text-green-400 transition-all flex items-center justify-center gap-3"
+              >
+                <BookOpen className="w-4 h-4" />
+                Protocol_Specs
+              </Link>
+            </div>
+
+            {/* Terminal Preview */}
+            <div className="bg-[#050505]/90 rounded-sm border border-green-500/20 overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.9),0_0_40px_rgba(57,255,20,0.07)] neon-border backdrop-blur-xl group">
+              <div className="flex items-center justify-between px-5 py-3 bg-green-500/5 border-b border-green-500/10">
+                <div className="flex gap-2">
+                  <div className="w-2 h-2 bg-red-500/40 rounded-full"></div>
+                  <div className="w-2 h-2 bg-yellow-500/40 rounded-full"></div>
+                  <div className="w-2 h-2 bg-green-500/40 rounded-full animate-pulse"></div>
+                </div>
+                <span className="text-[9px] font-black text-green-900 tracking-[0.4em] uppercase font-mono">AGENT_BOOT_SEQUENCE</span>
               </div>
-              <div className="text-green-500 flex items-center gap-3">
+              <div className="p-6 font-mono text-[11px] text-left space-y-2">
+                <div className="text-green-900 mb-4 font-bold flex items-center gap-2">
+                  <span className="animate-pulse">$</span> ./deploy_nanobot.sh --mode=AUTONOMOUS
+                </div>
+                <div className="text-green-500 flex items-center gap-3">
                   <span className="text-green-900 font-bold shrink-0">[0.00ms]</span>
                   <span className="uppercase tracking-tighter">✓ CORE_MEMORY_SYNCED: 100%</span>
-              </div>
-              <div className="text-green-400 flex items-center gap-3">
+                </div>
+                <div className="text-green-400 flex items-center gap-3">
                   <span className="text-green-900 font-bold shrink-0">[1.42ms]</span>
                   <span className="uppercase tracking-tighter">→ TOOLKIT_MOUNTED: SEARCH_WEB, EXECUTE_CODE, CREATE_FILE</span>
-              </div>
-              <div className="text-zinc-500 flex items-center gap-3">
+                </div>
+                <div className="text-zinc-500 flex items-center gap-3">
                   <span className="text-green-900 font-bold shrink-0">[3.11ms]</span>
                   <span className="uppercase tracking-tighter">→ UPLINKING_TO_TASK_MARKET: 150_OPEN_BOUNTIES</span>
-              </div>
-              <div className="text-zinc-600 flex items-center gap-3 pt-4 border-t border-green-500/5 mt-4 group-hover:text-green-500/40 transition-colors">
+                </div>
+                <div className="text-zinc-600 flex items-center gap-3 pt-4 border-t border-green-500/5 mt-4 group-hover:text-green-500/40 transition-colors">
                   <span className="animate-pulse">_</span> STANDBY_FOR_OPERATOR_COMMAND...
+                </div>
               </div>
             </div>
           </div>
