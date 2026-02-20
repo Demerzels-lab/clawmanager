@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Terminal, Zap, Brain, BookOpen, Menu, X, Search,
@@ -10,6 +10,7 @@ import { User, Task, Transaction, AgentLog, VirtualFile, ChatMessage, AgentMemor
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const chatContainerRef = useRef<HTMLDivElement>(null)
   const [user, setUser] = useState<User | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -18,6 +19,10 @@ export default function Dashboard() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [runningTool, setRunningTool] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [codingAnimation, setCodingAnimation] = useState(false)
+  const [animationText, setAnimationText] = useState('')
+  const [toolResult, setToolResult] = useState<{name: string, output: string} | null>(null)
+  const [animatingMsgId, setAnimatingMsgId] = useState<string | null>(null)
 
   // AI States
   const [virtualFiles, setVirtualFiles] = useState<VirtualFile[]>([])
@@ -26,9 +31,38 @@ export default function Dashboard() {
   const [agentMemories, setAgentMemories] = useState<AgentMemory[]>([])
   const [chatInput, setChatInput] = useState('')
 
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+    // Added a small timeout to ensure scroll happens after layout paint
+    const timeoutId = setTimeout(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+        }
+    }, 100)
+    return () => clearTimeout(timeoutId)
+  }, [chatMessages, animatingMsgId, animationText, activeTab])
+
   const fetchDatabaseData = useCallback(async () => {
     if (!user) return
     
+    // 1. Ambil Stats dari Supabase (Balance, dll)
+    const { data: stats, error: statsError } = await supabase
+      .from('user_stats')
+      .select('*')
+      .eq('username', user.username)
+      .single()
+
+    if (stats) {
+      setUser(prev => prev ? { ...prev, balance: stats.balance, tasksCompleted: stats.tasks_completed, totalEarnings: stats.total_earnings } : null)
+    } else if (statsError && statsError.code === 'PGRST116') {
+      // Jika user belum ada di DB, buatkan profil baru otomatis
+      await supabase.from('user_stats').insert([{ username: user.username, balance: 100.00 }])
+    }
+
+    // 2. Ambil Chat
     const { data: chats } = await supabase.from('chat_messages')
       .select('*')
       .eq('username', user.username)
@@ -43,7 +77,7 @@ export default function Dashboard() {
 
     const { data: memories } = await supabase.from('agent_memories')
       .select('*')
-      .eq('username', user.username)
+      // REMOVED: .eq('username', user.username) -> Global Collective Knowledge
       .order('created_at', { ascending: false })
     if (memories) setAgentMemories(memories.map(m => ({ id: m.id, topic: m.topic, details: m.details, timestamp: m.created_at })))
   }, [user])
@@ -64,10 +98,9 @@ export default function Dashboard() {
     setAgentLogs(storedLogs ? JSON.parse(storedLogs) : [])
   }, [navigate])
 
-  // 2. Fetch data HANYA jika user sudah terdefinisi dan bersihkan chat lama agar tidak 'flash' data user lain
+  // 2. Fetch data HANYA jika user sudah terdefinisi
   useEffect(() => {
     if (user?.username) {
-      setChatMessages([]) // Bersihkan UI sebelum loading data baru
       fetchDatabaseData()
     }
   }, [user?.username, fetchDatabaseData])
@@ -82,22 +115,96 @@ export default function Dashboard() {
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !user) return
     const userText = chatInput.trim()
-    const currentUsername = user.username // Capture username scope
+    const currentUsername = user.username
     
     setChatInput('')
-    setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text: userText, timestamp: new Date().toISOString() }])
-    setChatMessages(prev => [...prev, { id: 'loading-temp', sender: 'system', text: 'Connecting to Agent Core...', timestamp: new Date().toISOString() }])
+
+    // 1. Add user message AND Nova placeholder in a single state update to guarantee order
+    const msgId = `nova-reply-${Date.now()}`
+    setChatMessages(prev => [
+      ...prev,
+      { id: Date.now().toString(), sender: 'user', text: userText, timestamp: new Date().toISOString() },
+      { id: msgId, sender: 'agent', text: 'UPLINKING...', timestamp: new Date().toISOString() }
+    ])
+    setAnimatingMsgId(msgId)
+    setAnimationText('')
+
+    const startTime = Date.now()
+    let apiDone = false
+
+    // 2. Fire the API call immediately in the background
+    const apiPromise = supabase.functions.invoke('rapid-handler', {
+      body: { text: userText, username: currentUsername }
+    }).then(({ error }) => {
+      if (error) throw error
+    }).finally(() => {
+      apiDone = true
+    })
+
+    // 3. Looping terminal animation - runs WHILE waiting for API (min 4 seconds)
+    const codeSnippets = [
+      `> NOVA_v4_SESSION: INITIALIZED\n`,
+      `// OPERATOR: ${currentUsername.toUpperCase()}\n`,
+      `// MODE: ANALYTICAL\n`,
+      `\n`,
+      `import { NeuralCore } from '@nova/brain';\n`,
+      `\n`,
+      `const ctx = NeuralCore.spawn({\n`,
+      `  operator: '${currentUsername}',\n`,
+      `  protocol: 'SECURE_UPLINK'\n`,
+      `});\n`,
+      `\n`,
+      `// Scanning memory deposits...\n`,
+      `await ctx.loadMemory({ scope: 'GLOBAL' });\n`,
+      `\n`,
+      `// Synthesizing response node...\n`,
+      `const reply = await ctx.process(query);\n`,
+      `\n`,
+      `> UPLINK_ACTIVE // AWAITING_RESPONSE...\n`,
+    ]
+
+    let animLoop = true
+    const runAnimation = async () => {
+      while (animLoop) {
+        let currentText = ''
+        for (const snippet of codeSnippets) {
+          if (!animLoop) break
+          for (const char of snippet) {
+            if (!animLoop) break
+            currentText += char
+            setAnimationText(currentText)
+            await new Promise(r => setTimeout(r, Math.random() * 8 + 4))
+          }
+          await new Promise(r => setTimeout(r, 80))
+        }
+        // Stop looping only when API is done AND minimum 4s has elapsed
+        const elapsed = Date.now() - startTime
+        if (apiDone && elapsed >= 4000) {
+          animLoop = false
+        } else {
+          // Loop again with a separator
+          await new Promise(r => setTimeout(r, 400))
+          setAnimationText(t => t + `\n// Re-processing stream...\n\n`)
+          await new Promise(r => setTimeout(r, 300))
+        }
+      }
+    }
 
     try {
-      const { error } = await supabase.functions.invoke('rapid-handler', { 
-        body: { text: userText, username: currentUsername } 
-      })
-      if (error) throw error
+      // Run animation and API in parallel; wait for both + enforce 4s minimum
+      await Promise.all([
+        apiPromise,
+        runAnimation(),
+        new Promise(r => setTimeout(r, 4000))
+      ])
+      setAnimatingMsgId(null)
       fetchDatabaseData()
     } catch (error) {
+      animLoop = false // Stop animation loop on error
       console.error("Agent Comm-Link Error:", error)
-      setChatMessages(prev => prev.filter(msg => msg.id !== 'loading-temp'))
-      setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'system', text: 'ERROR: Connection to Agent Core failed.', timestamp: new Date().toISOString() }])
+      setAnimatingMsgId(null)
+      setChatMessages(prev => prev.filter(m => m.id !== msgId))
+      setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'system', text: 'ERROR: Agent Uplink Interrupted.', timestamp: new Date().toISOString() }])
     }
   }
 
@@ -120,19 +227,36 @@ export default function Dashboard() {
     if (user.balance < cost) return alert('Insufficient balance!')
     
     setRunningTool(toolName)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    setToolResult(null)
+    await new Promise(resolve => setTimeout(resolve, 1500))
     
     const timestamp = new Date().toISOString()
-    const newLog: AgentLog = { id: Date.now(), tool: toolName, output: getToolOutput(toolName), timestamp }
+    const output = getToolOutput(toolName)
+    const newLog: AgentLog = { id: Date.now(), tool: toolName, output, timestamp }
     const newTransaction: Transaction = { id: Date.now(), timestamp, type: 'tool_usage', tool: toolName, amount: -cost, description: `Used ${toolName}` }
     
-    const updatedUser = { ...user, balance: user.balance - cost }
+    // REDUCE BALANCE IN SUPABASE
+    const newBalance = user.balance - cost
+    await supabase.from('user_stats').update({ balance: newBalance }).eq('username', user.username)
+
+    // REAL EFFECT: If create_file, actually add a node
+    if (toolName === 'create_file') {
+      await supabase.from('virtual_files').insert([{ 
+        name: `manual_node_${Date.now()}.sys`, 
+        content: `// MANUALLY SYNTHESIZED BY OPERATOR: ${user.username.toUpperCase()}\n// SYNCED AT: ${timestamp}\nSTATUS: OPERATIONAL`,
+        username: user.username
+      }])
+      fetchDatabaseData()
+    }
+
+    const updatedUser = { ...user, balance: newBalance }
     const updatedLogs = [...agentLogs, newLog]
     const updatedTransactions = [...transactions, newTransaction]
     
     setUser(updatedUser)
     setAgentLogs(updatedLogs)
     setTransactions(updatedTransactions)
+    setToolResult({ name: toolName, output: output })
     saveData(updatedUser, tasks, updatedTransactions, updatedLogs)
     setRunningTool(null)
   }
@@ -140,52 +264,113 @@ export default function Dashboard() {
   const completeTask = async (task: Task) => {
     if (!user) return
     setRunningTool('completing')
+    setCodingAnimation(true)
     
-    // 1. Tutup modal popup segera
+    // 1. Redirect to COMM-LINK immediately
     setSelectedTask(null)
-    
-    // 2. Pindahkan user ke tab Inbox otomatis untuk melihat AI bekerja
     setActiveTab('inbox')
-
-    // 3. Buat prompt otomatis untuk mendelegasikan tugas ke AI
-    const autoPrompt = `[SYSTEM_TASK_ASSIGNMENT] Please execute the following task for me: "${task.title}" (${task.sector} Sector). 
-    Description: ${task.description}. 
+    const msgId = `nova-sync-${Date.now()}`
+    setAnimationText('')
     
-    INSTRUCTION: Since the description is generic, you MUST invent a specific, plausible scenario for this task yourself (for example: if it's coding in retail, write a simple python script to calculate discounts). 
-    Do not ask me for more details. Execute your invented scenario, write a brief execution report, and MUST use the CREATE_FILE tool to generate the final result.`
+    // 2. Add user prompt AND Nova placeholder in a single update to guarantee order
+    const autoPrompt = `[SYSTEM_TASK_ASSIGNMENT] Please execute the following task: "${task.title}" in ${task.sector} Sector. Use CREATE_FILE and ADD_MEMORY.`
+    setChatMessages(prev => [
+      ...prev, 
+      { id: Date.now().toString(), sender: 'user', text: autoPrompt, timestamp: new Date().toISOString() },
+      { id: msgId, sender: 'agent', text: 'SYNCING...', timestamp: new Date().toISOString() }
+    ])
+    setAnimatingMsgId(msgId)
 
-    // 4. Tampilkan pesan secara optimistik di UI Chat
-    setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text: autoPrompt, timestamp: new Date().toISOString() }])
-    setChatMessages(prev => [...prev, { id: 'loading-temp', sender: 'system', text: `Agent is executing task: ${task.title}...`, timestamp: new Date().toISOString() }])
+    const startTime = Date.now()
+    let apiDone = false
+
+    // 3. Fire API call immediately in the background
+    const apiPromise = supabase.functions.invoke('rapid-handler', {
+      body: { text: autoPrompt, username: user.username }
+    }).then(async ({ error }) => {
+      if (error) throw error
+      // Update reward in parallel with animation finishing
+      const newBalance = user.balance + task.reward
+      const newTasksCompleted = user.tasksCompleted + 1
+      const newTotalEarnings = user.totalEarnings + task.reward
+      await supabase.from('user_stats')
+        .update({ balance: newBalance, tasks_completed: newTasksCompleted, total_earnings: newTotalEarnings })
+        .eq('username', user.username)
+      const updatedUser = { ...user, balance: newBalance, tasksCompleted: newTasksCompleted, totalEarnings: newTotalEarnings }
+      setUser(updatedUser)
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'completed' } : t))
+      saveData(updatedUser, tasks, transactions, agentLogs)
+    }).finally(() => {
+      apiDone = true
+    })
+
+    // 4. Looping terminal animation — runs WHILE waiting for API (min 4 seconds)
+    const codeSnippets = [
+      `> NOVA_OS v4.0.5 // SECTOR: ${task.sector.toUpperCase()}\n`,
+      `> JOB_ID: 000-${task.id}\n`,
+      `\n`,
+      `import { ${task.sector.replace(/ /g, '')} } from '@nova/core';\n`,
+      `\n`,
+      `// Bootstrapping execution environment...\n`,
+      `const env = new Environment({\n`,
+      `  id: '${task.id}',\n`,
+      `  mode: 'PRODUCTION',\n`,
+      `  sector: '${task.sector}'\n`,
+      `});\n`,
+      `\n`,
+      `// Primary directive: ${task.title}\n`,
+      `await env.execute({\n`,
+      `  task: directive,\n`,
+      `  optimizations: true,\n`,
+      `  security_level: 'MAXIMUM'\n`,
+      `});\n`,
+      `\n`,
+      `> SYNTHESIZING_OUTPUT_NODES...\n`,
+      `> AWAITING_UPLINK_CONFIRMATION...\n`,
+    ]
+
+    let animLoop = true
+    const runAnimation = async () => {
+      while (animLoop) {
+        let currentText = ''
+        for (const snippet of codeSnippets) {
+          if (!animLoop) break
+          for (const char of snippet) {
+            if (!animLoop) break
+            currentText += char
+            setAnimationText(currentText)
+            await new Promise(r => setTimeout(r, Math.random() * 8 + 4))
+          }
+          await new Promise(r => setTimeout(r, 80))
+        }
+        const elapsed = Date.now() - startTime
+        if (apiDone && elapsed >= 4000) {
+          animLoop = false
+        } else {
+          await new Promise(r => setTimeout(r, 400))
+          setAnimationText(t => t + `\n// Re-verifying output integrity...\n\n`)
+          await new Promise(r => setTimeout(r, 300))
+        }
+      }
+    }
 
     try {
-      // 5. Panggil Edge Function Supabase (AI)
-      const { error } = await supabase.functions.invoke('rapid-handler', { 
-        body: { text: autoPrompt, username: user.username } 
-      })
-      if (error) throw error
-
-      // 6. JIKA AI BERHASIL: Berikan hadiah (reward) ke Balance User
-      const timestamp = new Date().toISOString()
-      const newTransaction: Transaction = { id: Date.now(), timestamp, type: 'task_reward', amount: task.reward, description: `Completed: ${task.title}` }
-      const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, status: 'completed' } : t)
-      const updatedUser = { ...user, balance: user.balance + task.reward, tasksCompleted: user.tasksCompleted + 1, totalEarnings: user.totalEarnings + task.reward }
-      const updatedTransactions = [...transactions, newTransaction]
-      
-      setUser(updatedUser)
-      setTasks(updatedTasks)
-      setTransactions(updatedTransactions)
-      saveData(updatedUser, updatedTasks, updatedTransactions, agentLogs)
-      
-      // 7. Ambil balasan terbaru AI dari database
+      await Promise.all([
+        apiPromise,
+        runAnimation(),
+        new Promise(r => setTimeout(r, 4000))
+      ])
+      setAnimatingMsgId(null)
       fetchDatabaseData()
-
     } catch (error) {
+      animLoop = false
       console.error("Task Execution Error:", error)
-      setChatMessages(prev => prev.filter(msg => msg.id !== 'loading-temp'))
-      setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'system', text: `ERROR: Agent failed to execute task ${task.title}. Reward cancelled.`, timestamp: new Date().toISOString() }])
+      setAnimatingMsgId(null)
+      setChatMessages(prev => prev.filter(msg => msg.id !== msgId))
+      setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'system', text: `ERROR: Uplink failed for ${task.title}.`, timestamp: new Date().toISOString() }])
     } finally {
       setRunningTool(null)
+      setCodingAnimation(false)
     }
   }
 
@@ -452,12 +637,26 @@ export default function Dashboard() {
                         disabled={runningTool !== null || user.balance < tool.cost} 
                         className="px-6 py-2 text-[10px] font-black uppercase tracking-[0.2em] bg-green-500/10 text-green-500 border border-green-500/20 hover:bg-green-500 hover:text-black transition-all disabled:opacity-30 cyber-button"
                       >
-                        Execute
+                        {runningTool === tool.name ? 'EXECUTING...' : 'Execute'}
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* NEW TOOL TERMINAL OUTPUT */}
+              {toolResult && (
+                <div className="bg-black/90 border border-green-500/40 p-4 rounded-sm font-mono animate-in slide-in-from-bottom-2">
+                    <div className="flex items-center gap-2 mb-2 text-green-500/40 text-[9px] font-black uppercase tracking-widest border-b border-green-500/10 pb-2">
+                        <Zap className="w-3 h-3 text-amber-500 animate-pulse" />
+                        Terminal_Output_{toolResult.name}.log
+                    </div>
+                    <div className="text-[10px] text-green-400">
+                        <span className="text-zinc-600">[{new Date().toLocaleTimeString()}]</span> <span className="text-white">NANOBOT@EXEC:</span> {toolResult.output}
+                        {toolResult.name === 'create_file' && <div className="mt-1 text-amber-500 italic">{" >> New Node successfully synthesized in workspace!"}</div>}
+                    </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -528,25 +727,67 @@ export default function Dashboard() {
                 <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_COMM_LINK</h2>
              </div>
              <div className="flex-1 bg-[#050505]/60 rounded-sm border border-green-500/10 flex flex-col min-h-[500px] neon-border overflow-hidden">
-               <div className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar bg-black/40">
+               <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar bg-black/40">
                  {chatMessages.map(msg => (
-                   <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                     {msg.sender === 'system' ? (
+                   <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                     {msg.sender === 'system' && msg.id !== animatingMsgId ? (
                         <div className="w-full flex justify-center py-2">
                             <span className="text-[9px] font-black text-green-900 uppercase tracking-[0.3em] font-mono animate-pulse">{msg.text}</span>
                         </div>
                      ) : (
-                        <div className={`max-w-[80%] rounded-sm px-4 py-3 border ${
+                        <div className={`max-w-[85%] rounded-sm px-4 py-3 border relative group ${
                             msg.sender === 'user' 
-                                ? 'bg-green-500/10 border-green-500/30 text-green-100' 
-                                : 'bg-zinc-900/50 border-white/5 text-zinc-300'
+                                ? 'bg-green-500/10 border-green-500/30 text-green-100 ml-12' 
+                                : 'bg-black/80 border-white/10 text-zinc-300 mr-12 shadow-[0_5px_15px_rgba(0,0,0,0.4)]'
                         }`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[8px] font-black uppercase tracking-widest opacity-40">{msg.sender === 'user' ? 'Operator' : 'Agent'}</span>
+                          <div className="flex items-center gap-2 mb-1.5 border-b border-white/5 pb-1">
+                            <div className={`w-1.5 h-1.5 rounded-full ${msg.sender === 'user' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`} />
+                            <span className="text-[8px] font-black uppercase tracking-widest opacity-40">
+                              {msg.sender === 'user' ? 'Operator' : 'Nova_v4'}
+                            </span>
+                            <span className="text-[8px] opacity-20 ml-auto font-mono">{new Date(msg.timestamp).toLocaleTimeString()}</span>
                           </div>
-                          <div className="whitespace-pre-wrap text-[11px] font-mono tracking-tighter">
-                            {msg.text.split('**').map((part, i) => i % 2 === 1 ? <b key={i} className="text-green-400 font-extrabold">{part}</b> : part)}
+                          
+                          <div className="whitespace-pre-wrap text-[11px] font-mono tracking-tighter leading-relaxed">
+                            {msg.id === animatingMsgId || msg.text === 'UPLINKING...' || msg.text === 'SYNCING...' ? (
+                              <div className="text-green-400 bg-black/80 p-4 border border-green-500/30 rounded shadow-[0_0_20px_rgba(34,197,94,0.1)] overflow-hidden relative">
+                                <div className="absolute top-0 left-0 right-0 h-[2px] bg-green-500/20 animate-pulse" />
+                                <div className="flex items-center gap-2 mb-4 border-b border-green-500/10 pb-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-red-500/50" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500/50" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-green-500/50" />
+                                  <span className="text-[7px] text-green-500/40 ml-2 font-black uppercase tracking-widest">
+                                    {msg.text === 'SYNCING...' ? 'NOVA_TASK_EXECUTION' : 'NOVA_TERMINAL_SESSION'}
+                                  </span>
+                                </div>
+                                <div className="space-y-1 font-mono text-[10px] text-green-300">
+                                  {/* Render existing animation text */}
+                                  {animationText}
+                                  <span className="inline-block w-2 h-4 bg-green-500 animate-pulse align-middle ml-1" />
+                                </div>
+                                <div className="mt-4 flex items-center gap-2 opacity-50">
+                                   <Activity className="w-2.5 h-2.5 animate-spin text-green-500" />
+                                   <span className="text-[7px] text-green-500/50 uppercase italic font-bold">Processing_Neural_Response...</span>
+                                </div>
+                              </div>
+                            ) : (
+                               msg.text.split('**').map((part, i) => i % 2 === 1 ? <b key={i} className="text-green-400 font-extrabold">{part}</b> : part)
+                            )}
                           </div>
+
+                          {/* Action Button if file created */}
+                          {!animatingMsgId && msg.sender !== 'user' && (msg.text.includes('[CREATE_FILE]') || msg.text.includes('synthesis')) && (
+                            <button 
+                              onClick={() => {
+                                setActiveTab('workspace');
+                                // Scroll to top or find latest file
+                              }}
+                              className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full text-[9px] font-black text-green-400 hover:bg-green-500 hover:text-black transition-all"
+                            >
+                              <Folder className="w-3 h-3" />
+                              VIEW_GENERATED_NODE
+                            </button>
+                          )}
                         </div>
                      )}
                    </div>
@@ -595,7 +836,21 @@ export default function Dashboard() {
                  ))}
                </div>
                <div className="flex-1 bg-[#050505]/80 rounded-sm border border-green-500/10 p-6 font-mono text-[11px] text-zinc-400 whitespace-pre-wrap overflow-y-auto custom-scrollbar neon-border bg-[linear-gradient(rgba(34,197,94,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
-                 {selectedFile ? (
+                 {codingAnimation ? (
+                    <div className="animate-in fade-in duration-300">
+                        <div className="pb-4 mb-4 border-b border-green-500/10 flex justify-between items-center">
+                            <span className="text-amber-500 text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Activity className="w-3 h-3 animate-pulse" />
+                                SYNTHESIZING_NODE...
+                            </span>
+                            <span className="text-green-900 text-[8px] animate-pulse">UPLINK_ACTIVE</span>
+                        </div>
+                        <pre className="whitespace-pre-wrap font-mono text-[11px] text-green-400/90 leading-relaxed">
+                            {animationText}
+                            <span className="animate-pulse">_</span>
+                        </pre>
+                    </div>
+                 ) : selectedFile ? (
                     <div className="animate-in fade-in duration-300">
                         <div className="pb-4 mb-4 border-b border-green-500/10 flex justify-between items-center">
                             <span className="text-green-500/40 text-[9px] font-black uppercase tracking-[0.2em]">FILE://{selectedFile.name}</span>

@@ -46,9 +46,11 @@ serve(async (req) => {
     - NO markdown codeblocks (\`\`\`) around tool calls.
 
     PRIMARY_TOOL_SYNTAX:
-    [CREATE_FILE: {"name": "logic.py", "content": "print('protocol active')"}]
+    1. [CREATE_FILE: {"name": "logic.py", "content": "print('protocol active')"}]
+    2. [ADD_MEMORY: {"topic": "SECTOR_LOG", "details": "Summary of lessons learned from this task"}]
 
     MISSION: Execute tasking, formulate logic nodes, and maintain link integrity.
+    Every time you complete a task, you MUST use both tools: create the relevant file AND store the new knowledge globally via ADD_MEMORY.
     Always bold critical concepts with **text**.`;
 
     let messages = [{ role: "system", content: systemPrompt }];
@@ -72,6 +74,23 @@ serve(async (req) => {
     };
 
     let aiText = await fetchAI(messages);
+
+    // --- PARSER: [ADD_MEMORY] ---
+    const memoryPattern = /\[ADD_MEMORY:\s*(\{[\s\S]*?\})\]/i;
+    const memoryMatch = aiText.match(memoryPattern);
+    if (memoryMatch) {
+        try {
+            const mData = JSON.parse(memoryMatch[1].trim());
+            if (mData.topic && mData.details) {
+                await supabase.from('agent_memories').insert([{ 
+                    topic: mData.topic.toUpperCase(), 
+                    details: mData.details,
+                    username // Still logging who added it, but UI will show it globally
+                }]);
+                aiText = aiText.replace(memoryMatch[0], `\n*(System Log: Collective Knowledge Stacked in Neural Deposits)*`);
+            }
+        } catch (e) { console.error("Memory Parser Error", e); }
+    }
 
     // ROBUST NEURAL PARSER (Handles messy AI outputs and recovery)
     const toolPattern = /\[CREATE_FILE:\s*(\{[\s\S]*?\})\]/i;
