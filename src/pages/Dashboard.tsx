@@ -33,6 +33,8 @@ export default function Dashboard() {
   const [chatInput, setChatInput] = useState('')
   const [earnNotification, setEarnNotification] = useState<{ amount: number; task: string } | null>(null)
   const [novaStatus, setNovaStatus] = useState<'idle' | 'processing' | 'auto'>('idle')
+  // 'thinking' = normal chat, 'code' = coding/technical task, 'text' = writing/copywriting task
+  const [animationType, setAnimationType] = useState<'thinking' | 'code' | 'text'>('thinking')
   const autoTaskRef = useRef<() => void>(() => {})
   // Keep auto-task fn fresh every render so it always captures latest state
   autoTaskRef.current = () => {
@@ -170,82 +172,63 @@ export default function Dashboard() {
       { id: msgId, sender: 'agent', text: 'UPLINKING...', timestamp: new Date().toISOString() }
     ])
     setAnimatingMsgId(msgId)
+    setAnimationType('thinking') // plain chat = minimal thinking UI, no code terminal
     setAnimationText('')
+    setNovaStatus('processing')
 
     const startTime = Date.now()
     let apiDone = false
 
-    // 2. Fire the API call immediately in the background
+    // Fire the API call immediately in the background
     const apiPromise = supabase.functions.invoke('rapid-handler', {
-      body: { text: userText, username: currentUsername }
+      body: { text: userText, username: currentUsername, taskType: 'chat' }
     }).then(({ error }) => {
       if (error) throw error
     }).finally(() => {
       apiDone = true
     })
 
-    // 3. Looping terminal animation - runs WHILE waiting for API (min 4 seconds)
-    const codeSnippets = [
-      `> NOVA_v4_SESSION: INITIALIZED\n`,
-      `// OPERATOR: ${currentUsername.toUpperCase()}\n`,
-      `// MODE: ANALYTICAL\n`,
-      `\n`,
-      `import { NeuralCore } from '@nova/brain';\n`,
-      `\n`,
-      `const ctx = NeuralCore.spawn({\n`,
-      `  operator: '${currentUsername}',\n`,
-      `  protocol: 'SECURE_UPLINK'\n`,
-      `});\n`,
-      `\n`,
-      `// Scanning memory deposits...\n`,
-      `await ctx.loadMemory({ scope: 'GLOBAL' });\n`,
-      `\n`,
-      `// Synthesizing response node...\n`,
-      `const reply = await ctx.process(query);\n`,
-      `\n`,
-      `> UPLINK_ACTIVE // AWAITING_RESPONSE...\n`,
+    // For plain chat: simple pulsing dot animation, min 2s only
+    const thinkingFrames = [
+      'Uplink established',
+      'Uplink established .',
+      'Uplink established . .',
+      'Uplink established . . .',
+      'Scanning neural deposits',
+      'Scanning neural deposits .',
+      'Scanning neural deposits . .',
+      'Scanning neural deposits . . .',
+      'Formulating response',
+      'Formulating response .',
+      'Formulating response . .',
+      'Formulating response . . .',
     ]
-
     let animLoop = true
     const runAnimation = async () => {
+      let i = 0
       while (animLoop) {
-        let currentText = ''
-        for (const snippet of codeSnippets) {
-          if (!animLoop) break
-          for (const char of snippet) {
-            if (!animLoop) break
-            currentText += char
-            setAnimationText(currentText)
-            await new Promise(r => setTimeout(r, Math.random() * 8 + 4))
-          }
-          await new Promise(r => setTimeout(r, 80))
-        }
-        // Stop looping only when API is done AND minimum 4s has elapsed
+        setAnimationText(thinkingFrames[i % thinkingFrames.length])
+        i++
+        await new Promise(r => setTimeout(r, 420))
         const elapsed = Date.now() - startTime
-        if (apiDone && elapsed >= 4000) {
-          animLoop = false
-        } else {
-          // Loop again with a separator
-          await new Promise(r => setTimeout(r, 400))
-          setAnimationText(t => t + `\n// Re-processing stream...\n\n`)
-          await new Promise(r => setTimeout(r, 300))
-        }
+        if (apiDone && elapsed >= 2000) animLoop = false
       }
     }
 
     try {
-      // Run animation and API in parallel; wait for both + enforce 4s minimum
       await Promise.all([
         apiPromise,
         runAnimation(),
-        new Promise(r => setTimeout(r, 4000))
+        new Promise(r => setTimeout(r, 2000))
       ])
       setAnimatingMsgId(null)
+      setNovaStatus('idle')
       fetchDatabaseData()
     } catch (error) {
-      animLoop = false // Stop animation loop on error
-      console.error("Agent Comm-Link Error:", error)
+      animLoop = false
+      console.error('Agent Comm-Link Error:', error)
       setAnimatingMsgId(null)
+      setNovaStatus('idle')
       setChatMessages(prev => prev.filter(m => m.id !== msgId))
       setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'system', text: 'ERROR: Agent Uplink Interrupted.', timestamp: new Date().toISOString() }])
     }
@@ -324,12 +307,21 @@ export default function Dashboard() {
     ])
     setAnimatingMsgId(msgId)
 
+    // Classify task animation type based on sector / title keywords
+    const WRITING_KEYWORDS = ['copywriting', 'copywrite', 'content', 'marketing', 'creative', 'writing', 'media', 'editorial', 'blog', 'article', 'social', 'copy']
+    const isWritingTask = WRITING_KEYWORDS.some(k =>
+      task.sector.toLowerCase().includes(k) || task.title.toLowerCase().includes(k)
+    )
+    const taskAnimType: 'code' | 'text' = isWritingTask ? 'text' : 'code'
+    setAnimationType(taskAnimType)
+    setNovaStatus('processing')
+
     const startTime = Date.now()
     let apiDone = false
 
     // 3. Fire API call immediately in the background
     const apiPromise = supabase.functions.invoke('rapid-handler', {
-      body: { text: autoPrompt, username: user.username }
+      body: { text: autoPrompt, username: user.username, taskType: taskAnimType === 'text' ? 'writing_task' : 'code_task' }
     }).then(async ({ error }) => {
       if (error) throw error
       // Update reward in parallel with animation finishing
@@ -349,53 +341,130 @@ export default function Dashboard() {
       apiDone = true
     })
 
-    // 4. Looping terminal animation — runs WHILE waiting for API (min 4 seconds)
+    // 4. Context-aware animation — rich real-looking content that types for 3+ seconds
+    const sectorClass = task.sector.replace(/[^a-zA-Z]/g, '')
+    const jobTs = new Date().toISOString().split('T')[0]
+
     const codeSnippets = [
-      `> NOVA_OS v4.0.5 // SECTOR: ${task.sector.toUpperCase()}\n`,
-      `> JOB_ID: 000-${task.id}\n`,
-      `\n`,
-      `import { ${task.sector.replace(/ /g, '')} } from '@nova/core';\n`,
-      `\n`,
-      `// Bootstrapping execution environment...\n`,
-      `const env = new Environment({\n`,
-      `  id: '${task.id}',\n`,
-      `  mode: 'PRODUCTION',\n`,
-      `  sector: '${task.sector}'\n`,
-      `});\n`,
-      `\n`,
-      `// Primary directive: ${task.title}\n`,
-      `await env.execute({\n`,
-      `  task: directive,\n`,
-      `  optimizations: true,\n`,
-      `  security_level: 'MAXIMUM'\n`,
-      `});\n`,
-      `\n`,
-      `> SYNTHESIZING_OUTPUT_NODES...\n`,
-      `> AWAITING_UPLINK_CONFIRMATION...\n`,
+      `# NOVA Agent Output\n`,
+      `# Task  : ${task.title}\n`,
+      `# Sector: ${task.sector} | Job #${task.id}\n`,
+      `# Date  : ${jobTs}\n`,
+      `# ─────────────────────────────────────────\n\n`,
+      `import asyncio\n`,
+      `import logging\n`,
+      `from dataclasses import dataclass, field\n`,
+      `from typing import Optional, List, Dict\n\n`,
+      `logger = logging.getLogger(__name__)\n\n`,
+      `@dataclass\n`,
+      `class ${sectorClass}Config:\n`,
+      `    task_id: int\n`,
+      `    sector: str = "${task.sector}"\n`,
+      `    operator: str = "${user.username}"\n`,
+      `    max_retries: int = 3\n`,
+      `    timeout: float = 30.0\n\n`,
+      `class ${sectorClass}Agent:\n`,
+      `    """Nova-generated agent for ${task.sector} ops."""\n\n`,
+      `    def __init__(self, config: ${sectorClass}Config):\n`,
+      `        self.config = config\n`,
+      `        self._session: Optional[object] = None\n`,
+      `        self._results: List[Dict] = []\n\n`,
+      `    async def execute(self) -> Dict:\n`,
+      `        logger.info(f"[NOVA] Executing: ${task.title}")\n`,
+      `        try:\n`,
+      `            await self._initialize_uplink()\n`,
+      `            result = await self._run_directive()\n`,
+      `            await self._commit_to_memory(result)\n`,
+      `            return {"status": "SUCCESS", "data": result}\n`,
+      `        except Exception as e:\n`,
+      `            logger.error(f"[NOVA] Uplink fault: {e}")\n`,
+      `            raise\n\n`,
+      `    async def _initialize_uplink(self):\n`,
+      `        logger.debug("[NOVA] Neural uplink initializing...")\n`,
+      `        await asyncio.sleep(0.1)\n`,
+      `        self._session = {"active": True, "sector": self.config.sector}\n\n`,
+      `    async def _run_directive(self) -> Dict:\n`,
+      `        # Core execution logic for ${task.sector}\n`,
+      `        output = await self._process_directive("${task.title}")\n`,
+      `        self._results.append(output)\n`,
+      `        return output\n\n`,
+      `    async def _process_directive(self, directive: str) -> Dict:\n`,
+      `        return {"directive": directive, "resolved": True}\n\n`,
+      `    async def _commit_to_memory(self, result: Dict):\n`,
+      `        logger.info("[NOVA] Committing result to neural grid...")\n\n`,
+      `if __name__ == "__main__":\n`,
+      `    cfg = ${sectorClass}Config(task_id=${task.id})\n`,
+      `    agent = ${sectorClass}Agent(cfg)\n`,
+      `    asyncio.run(agent.execute())\n`,
+      `\n# > UPLINK CONFIRMED — output committed to workspace\n`,
     ]
+
+    const writingSnippets = [
+      `> NOVA WRITER MODE — ACTIVATED\n`,
+      `> Brief  : "${task.title}"\n`,
+      `> Sector : ${task.sector.toUpperCase()}\n`,
+      `> Target : conversion-optimised audience\n`,
+      `> Date   : ${jobTs}\n`,
+      `> ─────────────────────────────────────────\n\n`,
+      `[HOOK]\n`,
+      `In a world where every data point matters,\n`,
+      `your ${task.sector} strategy can't afford to be\n`,
+      `ordinary. It needs to be surgical.\n\n`,
+      `[PROBLEM_STATEMENT]\n`,
+      `Most ${task.sector} initiatives fail not because\n`,
+      `the product is wrong — but because the message\n`,
+      `never lands at the right neural frequency.\n\n`,
+      `[VALUE_PROPOSITION]\n`,
+      `${task.title} changes that. By combining\n`,
+      `data-driven insight with precision copy,\n`,
+      `every word earns its place on the grid.\n\n`,
+      `[BODY — FEATURE BREAKDOWN]\n`,
+      `• Deep sector expertise in ${task.sector}\n`,
+      `• Tone-matched for target demographics\n`,
+      `• Conversion hooks embedded at key intervals\n`,
+      `• Neural-tested for retention and recall\n\n`,
+      `[SOCIAL_PROOF]\n`,
+      `Operators who deployed this framework saw\n`,
+      `a measurable uplift in engagement within\n`,
+      `the first 72-hour uplink cycle.\n\n`,
+      `[CALL_TO_ACTION]\n`,
+      `Don't just enter the market. Own the signal.\n`,
+      `Initialize your ${task.sector} protocol today.\n\n`,
+      `> COPY SYNTHESIZED — committing to workspace...\n`,
+    ]
+
+    const activeSnippets = taskAnimType === 'text' ? writingSnippets : codeSnippets
+    // Per-char speed: fast enough to feel live, slow enough to read
+    const charDelay = () => Math.random() * 6 + 2   // 2–8 ms
 
     let animLoop = true
     const runAnimation = async () => {
-      while (animLoop) {
-        let currentText = ''
-        for (const snippet of codeSnippets) {
+      let currentText = ''
+      // First pass — always runs fully for the live-typing feel
+      for (const snippet of activeSnippets) {
+        if (!animLoop) break
+        for (const char of snippet) {
           if (!animLoop) break
-          for (const char of snippet) {
-            if (!animLoop) break
-            currentText += char
-            setAnimationText(currentText)
-            await new Promise(r => setTimeout(r, Math.random() * 8 + 4))
-          }
-          await new Promise(r => setTimeout(r, 80))
+          currentText += char
+          setAnimationText(currentText)
+          await new Promise(r => setTimeout(r, charDelay()))
         }
+        await new Promise(r => setTimeout(r, 60))
+      }
+      // After first pass, loop a short suffix until API + 3s minimum both done
+      while (animLoop) {
         const elapsed = Date.now() - startTime
-        if (apiDone && elapsed >= 4000) {
-          animLoop = false
-        } else {
-          await new Promise(r => setTimeout(r, 400))
-          setAnimationText(t => t + `\n// Re-verifying output integrity...\n\n`)
-          await new Promise(r => setTimeout(r, 300))
+        if (apiDone && elapsed >= 3000) { animLoop = false; break }
+        const suffix = taskAnimType === 'text'
+          ? '\n[ Cross-referencing market data... ]\n'
+          : '\n# Optimising output matrix...\n'
+        for (const char of suffix) {
+          if (!animLoop) break
+          currentText += char
+          setAnimationText(currentText)
+          await new Promise(r => setTimeout(r, charDelay()))
         }
+        await new Promise(r => setTimeout(r, 350))
       }
     }
 
@@ -406,11 +475,13 @@ export default function Dashboard() {
         new Promise(r => setTimeout(r, 4000))
       ])
       setAnimatingMsgId(null)
+      setNovaStatus('idle')
       fetchDatabaseData()
     } catch (error) {
       animLoop = false
-      console.error("Task Execution Error:", error)
+      console.error('Task Execution Error:', error)
       setAnimatingMsgId(null)
+      setNovaStatus('idle')
       setChatMessages(prev => prev.filter(msg => msg.id !== msgId))
       setChatMessages(prev => [...prev, { id: Date.now().toString(), sender: 'system', text: `ERROR: Uplink failed for ${task.title}.`, timestamp: new Date().toISOString() }])
     } finally {
@@ -808,9 +879,13 @@ export default function Dashboard() {
              </div>
              <div className="flex-1 bg-[#050505]/60 rounded-sm border border-green-500/10 flex flex-col min-h-[500px] neon-border overflow-hidden">
                <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar bg-black/40">
-                 {chatMessages.map(msg => (
+                 {chatMessages.map((msg, msgIdx) => {
+                   // Animation anchors to the very last message in the array while animatingMsgId is active.
+                   // This is robust against ID mismatches caused by fetchDatabaseData replacing local placeholders.
+                   const isAnimatingBubble = animatingMsgId !== null && msgIdx === chatMessages.length - 1 && msg.sender === 'agent'
+                   return (
                    <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                     {msg.sender === 'system' && msg.id !== animatingMsgId ? (
+                     {msg.sender === 'system' && !isAnimatingBubble ? (
                         <div className="w-full flex justify-center py-2">
                             <span className="text-[9px] font-black text-green-900 uppercase tracking-[0.3em] font-mono animate-pulse">{msg.text}</span>
                         </div>
@@ -829,27 +904,56 @@ export default function Dashboard() {
                           </div>
                           
                           <div className="whitespace-pre-wrap text-[11px] font-mono tracking-tighter leading-relaxed">
-                            {msg.id === animatingMsgId || msg.text === 'UPLINKING...' || msg.text === 'SYNCING...' ? (
-                              <div className="text-green-400 bg-black/80 p-4 border border-green-500/30 rounded shadow-[0_0_20px_rgba(34,197,94,0.1)] overflow-hidden relative">
-                                <div className="absolute top-0 left-0 right-0 h-[2px] bg-green-500/20 animate-pulse" />
-                                <div className="flex items-center gap-2 mb-4 border-b border-green-500/10 pb-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-red-500/50" />
-                                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500/50" />
-                                  <div className="w-1.5 h-1.5 rounded-full bg-green-500/50" />
-                                  <span className="text-[7px] text-green-500/40 ml-2 font-black uppercase tracking-widest">
-                                    {msg.text === 'SYNCING...' ? 'NOVA_TASK_EXECUTION' : 'NOVA_TERMINAL_SESSION'}
-                                  </span>
-                                </div>
-                                <div className="space-y-1 font-mono text-[10px] text-green-300">
-                                  {/* Render existing animation text */}
-                                  {animationText}
-                                  <span className="inline-block w-2 h-4 bg-green-500 animate-pulse align-middle ml-1" />
-                                </div>
-                                <div className="mt-4 flex items-center gap-2 opacity-50">
-                                   <Activity className="w-2.5 h-2.5 animate-spin text-green-500" />
-                                   <span className="text-[7px] text-green-500/50 uppercase italic font-bold">Processing_Neural_Response...</span>
-                                </div>
-                              </div>
+                            {isAnimatingBubble ? (
+                              <>
+                                {/* ── THINKING: plain chat ─────────────────── */}
+                                {animationType === 'thinking' && (
+                                  <div className="flex items-center gap-3 py-2 px-1">
+                                    <div className="flex gap-1">
+                                      {[0,1,2].map(i => (
+                                        <div key={i} className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                                      ))}
+                                    </div>
+                                    <span className="text-[10px] text-green-400/70 font-mono tracking-wide">{animationText || 'Uplink established . . .'}</span>
+                                  </div>
+                                )}
+
+                                {/* ── CODE TERMINAL: technical / code task ─── */}
+                                {animationType === 'code' && (
+                                  <div className="text-green-400 bg-black/80 p-4 border border-green-500/30 rounded shadow-[0_0_20px_rgba(34,197,94,0.1)] overflow-hidden relative">
+                                    <div className="absolute top-0 left-0 right-0 h-[2px] bg-green-500/20 animate-pulse" />
+                                    <div className="flex items-center gap-2 mb-3 border-b border-green-500/10 pb-2">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-red-500/50" />
+                                      <div className="w-1.5 h-1.5 rounded-full bg-yellow-500/50" />
+                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500/50" />
+                                      <span className="text-[7px] text-green-500/40 ml-2 font-black uppercase tracking-widest">NOVA_TASK_EXECUTION — CODE_MODE</span>
+                                    </div>
+                                    <pre className="font-mono text-[10px] text-green-300 whitespace-pre-wrap leading-relaxed">
+                                      {animationText}
+                                      <span className="inline-block w-2 h-4 bg-green-500 animate-pulse align-middle ml-0.5" />
+                                    </pre>
+                                    <div className="mt-3 flex items-center gap-2 opacity-40">
+                                      <Activity className="w-2.5 h-2.5 animate-spin text-green-500" />
+                                      <span className="text-[7px] text-green-500/50 uppercase italic font-bold">Compiling output nodes...</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* ── DOCUMENT DRAFT: writing / copywriting task ── */}
+                                {animationType === 'text' && (
+                                  <div className="bg-[#0a0c0a]/90 border border-green-500/20 rounded overflow-hidden shadow-[0_0_15px_rgba(34,197,94,0.07)]">
+                                    <div className="flex items-center gap-2 px-4 py-2 bg-green-500/5 border-b border-green-500/10">
+                                      <FileText className="w-3 h-3 text-green-500/60" />
+                                      <span className="text-[7px] text-green-500/40 font-black uppercase tracking-widest">NOVA_COPYWRITER_MODE — DRAFTING</span>
+                                      <span className="ml-auto animate-pulse text-[7px] text-amber-500/60 font-bold">● LIVE</span>
+                                    </div>
+                                    <div className="p-4 font-mono text-[11px] text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                                      {animationText}
+                                      <span className="inline-block w-1.5 h-3.5 bg-amber-400/80 animate-pulse align-middle ml-0.5" />
+                                    </div>
+                                  </div>
+                                )}
+                              </>
                             ) : (
                                msg.text.split('**').map((part, i) => i % 2 === 1 ? <b key={i} className="text-green-400 font-extrabold">{part}</b> : part)
                             )}
@@ -871,7 +975,8 @@ export default function Dashboard() {
                         </div>
                      )}
                    </div>
-                 ))}
+                 ) // end return
+                 })} 
                </div>
                <div className="p-4 bg-[#050505] border-t border-green-500/10 flex gap-4">
                  <input 
