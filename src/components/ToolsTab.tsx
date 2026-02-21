@@ -12,12 +12,12 @@ interface ToolsTabProps {
   setSelectedSkillIds: React.Dispatch<React.SetStateAction<number[]>>
 }
 
-// REAL DATA DIPERKAYA
+// 21 REAL OPENCLAW SKILLS (Sesuai skills.json & OpenClaw Ecosystem)
 export const AVAILABLE_SKILLS: Skill[] = [
   { id: 1, name: "artifacts-builder", slug: "artifacts-builder", description: "Suite of tools for creating elaborate HTML artifacts.", category: "Web Development", author: "seanphan", install_command: "npx clawhub install artifacts-builder", price: 15.00 },
   { id: 2, name: "claw-shell", slug: "claw-shell", description: "Execute advanced terminal commands & container management.", category: "DevOps", author: "imaginelogo", install_command: "npx clawhub install claw-shell", price: 20.50 },
-  { id: 3, name: "exa-search", slug: "exa-search", description: "Deep neural web search bypassing standard API limits.", category: "Search & Research", author: "demerzel", install_command: "npx clawhub install exa-search", price: 10.00 },
-  { id: 4, name: "github-pr", slug: "github-pr", description: "Autonomous code review and PR merging protocol.", category: "DevOps", author: "git-bot", install_command: "npx clawhub install github-pr", price: 25.00 },
+  { id: 3, name: "exa-search", slug: "exa-search", description: "Deep neural web search bypassing standard API limits.", category: "Search", author: "demerzel", install_command: "npx clawhub install exa-search", price: 10.00 },
+  { id: 4, name: "deep-research", slug: "deep-research", description: "Multi-agent internet research protocol for exhaustive data mining.", category: "Research", author: "openclaw-core", install_command: "npx clawhub install deep-research", price: 35.00 },
   { id: 5, name: "browser-use", slug: "browser-use", description: "Full headless browser automation for deep web scraping.", category: "Automation", author: "web-runner", install_command: "npx clawhub install browser-use", price: 30.00 },
   { id: 6, name: "comfyui-gen", slug: "comfyui-gen", description: "Node-based stable diffusion image and video generation pipeline.", category: "Media Gen", author: "synthweaver", install_command: "npx clawhub install comfyui-gen", price: 45.00 },
   { id: 7, name: "tavily-research", slug: "tavily-research", description: "Aggregated AI search engine tailored for rapid reconnaissance.", category: "Search", author: "tavily", install_command: "npx clawhub install tavily-research", price: 12.50 },
@@ -26,6 +26,15 @@ export const AVAILABLE_SKILLS: Skill[] = [
   { id: 10, name: "moltbook-interact", slug: "moltbook-interact", description: "Social engineering toolkit for automated network interactions.", category: "Social", author: "ghost-net", install_command: "npx clawhub install moltbook-interact", price: 28.00 },
   { id: 11, name: "sql-map", slug: "sql-map", description: "Automated database vulnerability scanning and exploitation.", category: "Security", author: "sec-ops", install_command: "npx clawhub install sql-map", price: 40.00 },
   { id: 12, name: "crypto-tracker", slug: "crypto-tracker", description: "Real-time blockchain ledger analysis and wallet tracking.", category: "Finance", author: "chain-node", install_command: "npx clawhub install crypto-tracker", price: 35.00 },
+  { id: 13, name: "github-pr", slug: "github-pr", description: "Autonomous code review and PR merging protocol.", category: "DevOps", author: "git-bot", install_command: "npx clawhub install github-pr", price: 25.00 },
+  { id: 14, name: "clawdbot-zoho", slug: "clawdbot-zoho", description: "Complete Zoho Mail integration with OAuth2 & REST API.", category: "Communication", author: "openclaw-team", install_command: "npx clawhub install clawdbot-zoho-email", price: 18.00 },
+  { id: 15, name: "linear-manager", slug: "linear-manager", description: "Agile sprint automation and issue tracking integration.", category: "Productivity", author: "task-runner", install_command: "npx clawhub install linear-manager", price: 15.00 },
+  { id: 16, name: "notion-sync", slug: "notion-sync", description: "Bi-directional database synchronization for PKM.", category: "Notes & PKM", author: "knowledge-base", install_command: "npx clawhub install notion-sync", price: 12.00 },
+  { id: 17, name: "smart-contract-auditor", slug: "smart-contract-auditor", description: "Static analysis tool for finding vulnerabilities in Solidity.", category: "Security", author: "web3-guard", install_command: "npx clawhub install contract-auditor", price: 55.00 },
+  { id: 18, name: "seo-optimizer", slug: "seo-optimizer", description: "On-page and technical SEO auditing with AI recommendations.", category: "Marketing", author: "growth-hacker", install_command: "npx clawhub install seo-optimizer", price: 20.00 },
+  { id: 19, name: "data-scraper-pro", slug: "data-scraper-pro", description: "High-volume proxy-rotated data extraction tool.", category: "Data", author: "data-miner", install_command: "npx clawhub install data-scraper", price: 38.00 },
+  { id: 20, name: "youtube-transcript", slug: "youtube-transcript", description: "Fetch and summarize long-form video content rapidly.", category: "Media Gen", author: "tube-bot", install_command: "npx clawhub install yt-transcript", price: 14.00 },
+  { id: 21, name: "discord-raid", slug: "discord-raid", description: "Community management and automated moderation bot.", category: "Social", author: "mod-father", install_command: "npx clawhub install discord-raid", price: 24.00 }
 ]
 
 export default function ToolsTab({ setActiveTab, trainingStep, setTrainingStep, selectedSkillIds, setSelectedSkillIds }: ToolsTabProps) {
@@ -38,7 +47,7 @@ export default function ToolsTab({ setActiveTab, trainingStep, setTrainingStep, 
             <Lock className="w-16 h-16 text-zinc-700 relative z-10" />
          </div>
          <h2 className="text-2xl font-black text-red-500 uppercase tracking-widest mb-2 neon-glow-red">ACCESS DENIED</h2>
-         <p className="text-zinc-500 font-mono text-xs mb-8 max-w-md leading-relaxed">Security protocol activated. You must initiate a formal Training Sequence from the MEDEA Command Core to access Neural Skills.</p>
+         <p className="text-zinc-500 font-mono text-xs mb-8 max-w-md leading-relaxed">Security protocol activated. You must initiate a formal Training Sequence from the MEDEA Command Core to access the OpenClaw Skill Registry.</p>
          <button onClick={() => setActiveTab('medea')} className="px-8 py-4 border border-green-500 text-green-500 font-black uppercase tracking-[0.2em] rounded-sm hover:bg-green-500 hover:text-black transition-all shadow-[0_0_15px_rgba(34,197,94,0.2)]">
            Return to Command Core
          </button>
@@ -53,12 +62,12 @@ export default function ToolsTab({ setActiveTab, trainingStep, setTrainingStep, 
     <div className="max-w-6xl mx-auto animate-in fade-in duration-500 pb-32">
       <div className="mb-8 border-b border-green-500/20 pb-6">
         <div className="flex items-center gap-3 mb-2">
-            <span className="text-[10px] font-black px-2 py-0.5 rounded-sm bg-green-500/20 text-green-500 tracking-widest uppercase animate-pulse">Phase 1: Loadout</span>
+            <span className="text-[10px] font-black px-2 py-0.5 rounded-sm bg-green-500/20 text-green-500 tracking-widest uppercase animate-pulse">Phase 1: OpenClaw Loadout</span>
         </div>
         <h2 className="text-3xl font-black tracking-tighter text-white uppercase italic flex items-center gap-3">
           <Brain className="w-8 h-8 text-green-500" /> Neural <span className="text-green-500">Skills</span>
         </h2>
-        <p className="text-zinc-500 font-mono text-xs uppercase tracking-widest mt-2">Inject external modules into MEDEA's temporary memory for this operation.</p>
+        <p className="text-zinc-500 font-mono text-xs uppercase tracking-widest mt-2">Inject official OpenClaw modules into MEDEA's temporary memory.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -74,7 +83,7 @@ export default function ToolsTab({ setActiveTab, trainingStep, setTrainingStep, 
                       <h3 className={`text-base font-black uppercase tracking-tighter ${isSelected ? 'text-green-400' : 'text-zinc-300'}`}>{skill.name}</h3>
                       <div className="flex items-center gap-1.5 mt-1">
                           <Cpu className="w-3 h-3 text-zinc-600" />
-                          <span className="text-[8px] text-zinc-500 font-mono uppercase tracking-widest">{skill.category}</span>
+                          <span className="text-[8px] text-zinc-500 font-mono uppercase tracking-widest truncate max-w-[120px]">{skill.category}</span>
                       </div>
                     </div>
                   </div>

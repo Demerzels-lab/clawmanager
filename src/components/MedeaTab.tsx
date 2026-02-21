@@ -1,4 +1,5 @@
-import { Activity, Play, Zap, FileText, Fingerprint, Network, ShieldCheck, TerminalSquare } from 'lucide-react'
+import { useState } from 'react'
+import { Activity, Play, Zap, FileText, Fingerprint, Network, ShieldCheck, TerminalSquare, ChevronLeft, ChevronRight } from 'lucide-react'
 import { User } from '../types'
 import { AVAILABLE_SKILLS } from './ToolsTab'
 import { NewArtifactSummary } from '../pages/Dashboard'
@@ -11,11 +12,19 @@ interface MedeaTabProps {
 }
 
 export default function MedeaTab({ user, setActiveTab, setTrainingStep, newArtifacts }: MedeaTabProps) {
-  // Ambil 8 skill sebagai "Featured" di Neural Arsenal (menyesuaikan jumlah di ToolsTab)
-  const featuredSkills = AVAILABLE_SKILLS.slice(0, 8);
+  // PAGINATION LOGIC
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 6 // Menghasilkan 2 baris x 3 kolom
+  const totalPages = Math.ceil(AVAILABLE_SKILLS.length / itemsPerPage)
+  
+  // Mengambil skill khusus untuk halaman saat ini
+  const currentSkills = AVAILABLE_SKILLS.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
+  )
 
   return (
-    <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+    <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20 overflow-hidden">
       
       {/* Header */}
       <div className="flex items-center justify-between mb-8 border-b border-green-500/20 pb-6 relative">
@@ -26,7 +35,7 @@ export default function MedeaTab({ user, setActiveTab, setTrainingStep, newArtif
             MEDEA <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-700">COMMAND CORE</span>
           </h2>
           <p className="text-zinc-400 font-mono text-xs uppercase tracking-widest mt-2 flex items-center gap-2">
-             <Fingerprint className="w-3 h-3 text-green-500"/> Autonomous Neural Operator // Build v4.0.5_QUANTUM
+             <Fingerprint className="w-3 h-3 text-green-500"/> Powered by OpenClaw Engine // v4.0.5_QUANTUM
           </p>
         </div>
         <div className="hidden md:flex flex-col items-end">
@@ -38,7 +47,7 @@ export default function MedeaTab({ user, setActiveTab, setTrainingStep, newArtif
         </div>
       </div>
 
-      {/* NOTIFIKASI ARTIFACT BARU - SEKARANG DENGAN DAFTAR RINCIAN FILE */}
+      {/* NOTIFIKASI ARTIFACT BARU - PAYLOAD MANIFEST */}
       {newArtifacts.length > 0 && (
         <div className="mb-10 bg-gradient-to-r from-green-500/10 to-transparent border-l-4 border-green-500 rounded-r-sm p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between shadow-[0_0_40px_rgba(34,197,94,0.15)] animate-in slide-in-from-top-4 fade-in duration-500 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(45deg,transparent_25%,rgba(34,197,94,0.03)_50%,transparent_75%)] bg-[length:10px_10px]" />
@@ -83,29 +92,30 @@ export default function MedeaTab({ user, setActiveTab, setTrainingStep, newArtif
                     Engage Economic Training
                  </h3>
                  <p className="text-zinc-400 font-mono text-sm leading-relaxed mb-6">
-                   Deploy MEDEA into the highly volatile Corporate Task Market. Equip her with specialized loadouts from your Neural Arsenal, assign complex operational targets, and allow the autonomous OpenRouter core to synthesize high-grade artifacts. <br/><br/>
-                   <span className="text-green-500 font-bold border-l-2 border-green-500 pl-3">Lethal execution. Maximum yield. Zero compromises.</span>
+                   Deploy MEDEA into the corporate Task Market. Equip her with verified OpenClaw skills—from Deep Research to Headless Browser Automation. Assign operational targets, and allow the AI engine to synthesize raw credits and artifacts.<br/><br/>
+                   <span className="text-green-500 font-bold border-l-2 border-green-500 pl-3">Lethal execution. Powered by OpenClaw ecosystem.</span>
                  </p>
              </div>
              <button onClick={() => { setTrainingStep(1); setActiveTab('tools') }} className="w-full md:w-auto flex flex-col items-center justify-center gap-2 px-12 py-6 bg-green-500 text-black font-black uppercase tracking-[0.2em] rounded-sm hover:bg-green-400 hover:shadow-[0_0_50px_rgba(34,197,94,0.6)] transition-all cyber-button hover:scale-105 group/btn shrink-0">
                <div className="flex items-center gap-3 text-lg">
                   <Play className="w-6 h-6 fill-current group-hover/btn:animate-pulse" /> Initialize Link
                </div>
-               <span className="text-[9px] font-mono font-bold text-black/60">AWAITING DIRECTIVE</span>
+               <span className="text-[9px] font-mono font-bold text-black/60">ACCESS OPENCLAW REGISTRY</span>
              </button>
           </div>
       </div>
 
-      {/* NEURAL ARSENAL */}
+      {/* PAGINATION GRID: OPENCLAW ARSENAL */}
       <div className="mb-4 flex items-center gap-3">
          <Network className="w-6 h-6 text-green-500" />
-         <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Featured Neural Arsenal</h3>
+         <h3 className="text-2xl font-black text-white uppercase tracking-tighter">OpenClaw Neural Arsenal</h3>
          <div className="h-[1px] flex-1 bg-gradient-to-r from-green-500/20 to-transparent ml-4" />
       </div>
-      <p className="text-zinc-500 font-mono text-xs uppercase tracking-widest mb-8">Selected Core modules available for rapid deployment.</p>
+      <p className="text-zinc-500 font-mono text-xs uppercase tracking-widest mb-6">Explore all {AVAILABLE_SKILLS.length} verified modules ready for deployment.</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {featuredSkills.map((skill, idx) => (
+      {/* Grid Container: 3 Columns (lg), 2 Rows = 6 Cards per page */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 min-h-[400px]">
+        {currentSkills.map((skill, idx) => (
            <div key={idx} className="bg-[#050505] border border-green-500/20 rounded-sm p-6 relative overflow-hidden group hover:border-green-500/50 hover:shadow-[0_0_30px_rgba(34,197,94,0.15)] transition-all duration-300 flex flex-col justify-between">
               <div>
                   <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(transparent_50%,rgba(34,197,94,0.02)_50%)] bg-[length:100%_4px] pointer-events-none" />
@@ -119,17 +129,47 @@ export default function MedeaTab({ user, setActiveTab, setTrainingStep, newArtif
                   </div>
                   
                   <div className="relative z-10">
-                     <h4 className="text-base font-black text-white uppercase tracking-tight mb-1 group-hover:text-green-400 transition-colors">{skill.name}</h4>
-                     <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-widest">{skill.category}</span>
+                     <h4 className="text-lg font-black text-white uppercase tracking-tight mb-1 group-hover:text-green-400 transition-colors truncate" title={skill.name}>{skill.name}</h4>
+                     <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-widest truncate block" title={skill.category}>{skill.category}</span>
                   </div>
               </div>
               
-              <p className="text-[11px] font-mono text-zinc-400 mt-4 leading-relaxed line-clamp-2 relative z-10">
-                 {skill.description}
-              </p>
+              <div className="mt-4 pt-4 border-t border-green-500/10 relative z-10">
+                 <p className="text-[11px] font-mono text-zinc-400 leading-relaxed line-clamp-2" title={skill.description}>
+                    {skill.description}
+                 </p>
+              </div>
            </div>
         ))}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+         <div className="flex items-center justify-center gap-4 pt-4">
+            <button 
+              disabled={currentPage === 1} 
+              onClick={() => setCurrentPage(p => p - 1)} 
+              className="p-3 border border-green-500/20 text-green-500 disabled:opacity-30 disabled:hover:bg-transparent hover:bg-green-500/10 rounded-sm transition-colors"
+            >
+               <ChevronLeft className="w-5 h-5"/>
+            </button>
+            <div className="flex flex-col items-center justify-center">
+               <span className="text-xs font-mono text-green-500 font-bold tracking-widest uppercase">Page {currentPage} of {totalPages}</span>
+               <div className="flex gap-1 mt-2">
+                 {Array.from({ length: totalPages }).map((_, i) => (
+                    <div key={i} className={`h-1 rounded-full transition-all ${currentPage === i + 1 ? 'w-6 bg-green-500' : 'w-2 bg-green-500/20'}`} />
+                 ))}
+               </div>
+            </div>
+            <button 
+              disabled={currentPage === totalPages} 
+              onClick={() => setCurrentPage(p => p + 1)} 
+              className="p-3 border border-green-500/20 text-green-500 disabled:opacity-30 disabled:hover:bg-transparent hover:bg-green-500/10 rounded-sm transition-colors"
+            >
+               <ChevronRight className="w-5 h-5"/>
+            </button>
+         </div>
+      )}
 
     </div>
   )
