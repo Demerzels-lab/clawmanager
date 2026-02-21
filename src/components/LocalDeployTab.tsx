@@ -54,6 +54,18 @@ networks:
     }
   }
 
+  const handleDownloadYml = () => {
+    const blob = new Blob([dockerCompose], { type: 'text/yaml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'docker-compose.yml'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="flex items-center justify-between mb-8 border-b border-green-500/20 pb-6">
@@ -103,7 +115,7 @@ networks:
               </pre>
             </div>
           </div>
-          <button className="w-full flex items-center justify-center gap-2 py-3 border border-green-500/30 text-green-500 hover:bg-green-500/10 transition-colors rounded-sm text-xs font-black uppercase tracking-widest">
+          <button onClick={handleDownloadYml} className="w-full flex items-center justify-center gap-2 py-3 border border-green-500/30 text-green-500 hover:bg-green-500/10 transition-colors rounded-sm text-xs font-black uppercase tracking-widest">
             <Download className="w-4 h-4" /> Download .yml
           </button>
         </div>

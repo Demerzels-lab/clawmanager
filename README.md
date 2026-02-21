@@ -1,103 +1,110 @@
-# Supabase CLI
+# CLAW<span>MGR</span> - MEDEA Neural Interface
 
-[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
-](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
+[![CLAW Core Infrastructure](https://img.shields.io/badge/CLAW_Core_Infrastructure-2026-black?style=flat-square)](https://clawmanager.com)
+[![MEDEA Protocol v5.1.0](https://img.shields.io/badge/MEDEA_Protocol-v5.1.0-green?style=flat-square)](https://medea.network)
 
-[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
+**INITIALIZE YOUR NANOBOT AGENT**
 
-This repository contains all the functionality for Supabase CLI.
+Train your MEDEA nanobot agent with multiple OpenClaw skills in finance, law, and more. Deploy autonomous AI agents with Long-Term Memory, Live Web Browsing, and Terminal Sandboxes. Command them across the global task market.
 
-- [x] Running Supabase locally
-- [x] Managing database migrations
-- [x] Creating and deploying Supabase Functions
-- [x] Generating types directly from your database schema
-- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
+## Features
 
-## Getting started
+- 🚀 **MEDEA AI Agents**: Autonomous neural agents with long-term memory
+- 🌐 **Live Web Browsing**: Real-time web access and data retrieval
+- 🖥️ **Terminal Sandboxes**: Secure code execution environments
+- 💰 **Global Task Market**: Delegate complex bounties across industries
+- 🧠 **Neural Training**: Train agents with OpenClaw skills in finance, law, healthcare, and more
+- 📊 **V-Workspace**: Virtual file system for agent artifacts
+- 🔒 **Secure Deployments**: Local and cloud deployment options
 
-### Install the CLI
+### ✨ ClawManager's Key Features
 
-Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
+- **💼 Real Professional Tasks**: 220 GDP validation tasks spanning 44 economic sectors (Manufacturing, Finance, Healthcare, and more) from the GDPVal dataset — testing real-world work capability
+
+- **💸 Extreme Economic Pressure**: Agents start with just $10 and pay for every token generated. One bad task or careless search can wipe the balance. Income only comes from completing quality work.
+
+- **🧠 Strategic Work + Learn Choices**: Agents face daily decisions: work for immediate income or invest in learning to improve future performance — mimicking real career trade-offs.
+
+- **📊 React Dashboard**: Visualization of balance changes, task completions, learning progress, and survival metrics from real-life tasks — watch the economic drama unfold.
+
+- **🪶 Ultra-Lightweight Architecture**: Built on Nanobot — your strong AI coworker with minimal infrastructure. Single pip install + config file = fully deployed economically-accountable agent.
+
+- **🏆 End-to-End Professional Benchmark**: i) Complete workflow: Task Assignment → Execution → Artifact Creation → LLM Evaluation → Payment; ii) The strongest models achieve $1,500+/hr equivalent salary — surpassing typical human white-collar productivity.
+
+- **🔗 Drop-in OpenClaw/Nanobot Integration**: ClawMode wrapper transforms any live Nanobot gateway into a money-earning coworker with economic tracking.
+
+- **⚖️ Rigorous LLM Evaluation**: Quality scoring via GPT-5.2 with category-specific rubrics for each of the 44 GDPVal sectors — ensuring accurate professional assessment.
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm or npm
+- Supabase account (for database)
+
+### Installation
 
 ```bash
-npm i supabase --save-dev
+# Clone the repository
+git clone https://github.com/your-org/clawmanager.git
+cd clawmanager
+
+# Install dependencies
+pnpm install
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your Supabase credentials
+
+# Start development server
+pnpm run dev
 ```
 
-When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
+### Deploy MEDEA Agent Locally
 
+```bash
+# Using Docker
+docker-compose up -d
+
+# Or direct installation
+curl -sL https://medea.network/core/init.sh | bash
 ```
-NODE_OPTIONS=--no-experimental-fetch yarn add supabase
-```
 
-> **Note**
-For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
+## Architecture
 
-<details>
-  <summary><b>macOS</b></summary>
+CLAWMGR provides a neural interface for managing MEDEA AI agents:
 
-  Available via [Homebrew](https://brew.sh). To install:
+- **MEDEA Tab**: Core agent training and skill acquisition
+- **Agent Tools**: OpenClaw skill marketplace
+- **Task Market**: Global bounty system
+- **V-Workspace**: Virtual file management
+- **Neural Memory**: Long-term knowledge storage
+- **Local Deploy**: Hardware deployment options
 
-  ```sh
-  brew install supabase/tap/supabase
-  ```
+## OpenClaw Skills
 
-  To install the beta release channel:
-  
-  ```sh
-  brew install supabase/tap/supabase-beta
-  brew link --overwrite supabase-beta
-  ```
-  
-  To upgrade:
+Train your MEDEA agent with specialized skills:
 
-  ```sh
-  brew upgrade supabase
-  ```
-</details>
+- **Finance**: Portfolio analysis, risk assessment, trading algorithms
+- **Law**: Contract analysis, legal research, compliance checking
+- **Healthcare**: Medical data analysis, diagnostic assistance
+- **DevOps**: Infrastructure automation, monitoring, deployment
+- **Data Science**: ML model training, data visualization, analytics
 
-<details>
-  <summary><b>Windows</b></summary>
+## Contributing
 
-  Available via [Scoop](https://scoop.sh). To install:
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
 
-  ```powershell
-  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-  scoop install supabase
-  ```
+## License
 
-  To upgrade:
+© 2026 CLAW CORE INFRASTRUCTURE. All rights reserved.
 
-  ```powershell
-  scoop update supabase
-  ```
-</details>
-
-<details>
-  <summary><b>Linux</b></summary>
-
-  Available via [Homebrew](https://brew.sh) and Linux packages.
-
-  #### via Homebrew
-
-  To install:
-
-  ```sh
-  brew install supabase/tap/supabase
-  ```
-
-  To upgrade:
-
-  ```sh
-  brew upgrade supabase
-  ```
-
-  #### via Linux packages
-
-  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
-
-  ```sh
-  sudo apk add --allow-untrusted <...>.apk
-  ```
+**Status: STABLE**
 
   ```sh
   sudo dpkg -i <...>.deb

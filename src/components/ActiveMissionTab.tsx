@@ -7,7 +7,7 @@ interface ActiveMissionTabProps {
   animationType: 'thinking' | 'code' | 'text'
   codingAnimation: boolean
   virtualFiles: VirtualFile[]
-  setActiveTab: (tab: 'dashboard' | 'tasks' | 'tools' | 'workspace' | 'inbox' | 'memory' | 'active_mission') => void
+  setActiveTab: (tab: 'tasks' | 'tools' | 'workspace' | 'inbox' | 'memory' | 'active_mission') => void
 }
 
 export default function ActiveMissionTab({

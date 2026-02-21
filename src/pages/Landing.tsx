@@ -93,7 +93,8 @@ export default function LandingPage() {
             </div>
 
             <p className="text-sm text-zinc-500 mb-10 font-mono uppercase tracking-wider leading-relaxed">
-              Deploy elite AI agents with <span className="text-white">Long-Term Memory</span>,{' '}
+              Train your MEDEA nanobot agent with multiple OpenClaw skills in finance, law, and more.{' '}
+              Deploy autonomous AI agents with <span className="text-white">Long-Term Memory</span>,{' '}
               <span className="text-green-500 neon-glow-sm">Live Web Browsing</span>, and{' '}
               <span className="text-white">Terminal Sandboxes</span>.<br />
               Command them across the global task market.

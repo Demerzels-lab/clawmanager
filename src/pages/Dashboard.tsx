@@ -1,18 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { InteractiveBackground } from '../components/InteractiveBackground'
-import DashboardTab from '../components/DashboardTab'
 import ActiveMissionTab from '../components/ActiveMissionTab'
-import InboxTab from '../components/InboxTab'
 import TaskMarket from '../components/TaskMarket'
 import WorkspaceTab from '../components/WorkspaceTab'
 import MemoryTab from '../components/MemoryTab'
 import ToolsTab from '../components/ToolsTab'
 import MedeaTab from '../components/MedeaTab'
 import LocalDeployTab from '../components/LocalDeployTab'
-import { Menu, Wallet, Activity, Brain, Target, Folder, Database, Server, XCircle, BarChart3 } from 'lucide-react'
+import { Menu, Wallet, Activity, Brain, Target, Folder, Database, Server, XCircle } from 'lucide-react'
 import { supabase, INITIAL_TASKS } from '../lib/supabase'
-import { User, Task, Transaction, AgentLog, VirtualFile, ChatMessage, AgentMemory } from '../types'
+import { User, Task, VirtualFile, AgentMemory } from '../types'
 
 export type NewArtifactSummary = {
   taskId?: number;
@@ -26,33 +24,25 @@ export default function Dashboard() {
   
   const [user, setUser] = useState<User | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [agentLogs, setAgentLogs] = useState<AgentLog[]>([])
   
-  const [activeTab, setActiveTab] = useState<'dashboard'|'medea'|'tools'|'tasks'|'workspace'|'memory'|'local_deploy'|'inbox'|'active_mission'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'medea'|'tools'|'tasks'|'workspace'|'memory'|'local_deploy'|'inbox'|'active_mission'>('medea')
   
   const [trainingStep, setTrainingStep] = useState<0 | 1 | 2>(0)
   const [selectedSkillIds, setSelectedSkillIds] = useState<number[]>([]) 
   // STATE BARU: Menyimpan ringkasan kaya untuk Medea Tab
   const [newArtifacts, setNewArtifacts] = useState<NewArtifactSummary[]>([])
 
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [runningTool, setRunningTool] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const [virtualFiles, setVirtualFiles] = useState<VirtualFile[]>([])
   const [selectedFile, setSelectedFile] = useState<VirtualFile | null>(null)
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [agentMemories, setAgentMemories] = useState<AgentMemory[]>([])
-  const [medeaStatus, setMedeaStatus] = useState<'idle' | 'processing' | 'auto'>('idle')
 
   const fetchDatabaseData = useCallback(async () => {
     if (!user) return
     const { data: stats } = await supabase.from('user_stats').select('*').eq('username', user.username).single()
     if (stats) setUser(prev => prev ? { ...prev, balance: stats.balance, tasksCompleted: stats.tasks_completed, totalEarnings: stats.total_earnings } : null)
-    
-    const { data: chats } = await supabase.from('chat_messages').select('*').eq('username', user.username).order('created_at', { ascending: true })
-    if (chats) setChatMessages(chats.map(c => ({ id: c.id, sender: c.sender, text: c.text, timestamp: c.created_at })))
     
     const { data: files } = await supabase.from('virtual_files').select('*').eq('username', user.username).order('updated_at', { ascending: false })
     if (files) setVirtualFiles(files.map(f => ({ id: f.id, name: f.name, content: f.content, updatedAt: f.updated_at })))
@@ -79,7 +69,6 @@ export default function Dashboard() {
   if (!user) return null
 
   const navItems = [
-    { id: 'dashboard',  icon: BarChart3,     label: 'OPERATIONS' },
     { id: 'medea',      icon: Activity,      label: 'MEDEA' },
     { id: 'tools',      icon: Brain,         label: 'AGENT TOOLS' },
     { id: 'tasks',      icon: Target,        label: 'TASK MARKET' },
@@ -139,8 +128,6 @@ export default function Dashboard() {
         </header>
 
         <div className="p-8 pb-20 relative overflow-y-auto custom-scrollbar flex-1 z-10">
-          {activeTab === 'dashboard' && <DashboardTab user={user} agentLogs={agentLogs} novaStatus={medeaStatus} runningTool={runningTool} setAgentLogs={setAgentLogs} setActiveTab={setActiveTab} />}
-          
           {activeTab === 'medea' && (
             <MedeaTab user={user} setActiveTab={setActiveTab} setTrainingStep={setTrainingStep} newArtifacts={newArtifacts} />
           )}
