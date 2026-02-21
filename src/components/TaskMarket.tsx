@@ -8,7 +8,7 @@ interface TaskMarketProps {
   tasks: Task[]
   user: User
   setActiveTab: (tab: any) => void
-  onCompleteTraining: (completedTasks: Task[], totalReward: number) => void
+  onCompleteTraining: (completedTasks: Task[], totalReward: number, generatedSummaries: {taskTitle: string, expectedFileName: string}[]) => void
   trainingStep: 0 | 1 | 2
   selectedSkillIds: number[]
 }
@@ -27,7 +27,6 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
   const availableTasks = tasks.filter(t => t.status === 'open')
   const categories = ['All', ...Array.from(new Set(availableTasks.map(t => t.sector)))]
   const filteredTasks = availableTasks.filter(t => selectedCategory === 'All' || t.sector === selectedCategory)
-  
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage)
   const currentTasks = filteredTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
@@ -49,32 +48,15 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
   const selectedTasksData = tasks.filter(t => selectedTasks.includes(t.id))
   const totalPotentialReward = selectedTasksData.reduce((sum, t) => sum + t.reward, 0)
 
-  // --- HELPER UNTUK ANIMASI TERMINAL ---
-  const addLog = (text: string, color: string = 'text-green-500') => {
-      setAnimText(prev => [...prev, { text, color }])
-  }
-  
-  const updateLastLog = (text: string, color: string = 'text-green-500') => {
-      setAnimText(prev => [...prev.slice(0, -1), { text, color }])
-  }
+  const addLog = (text: string, color: string = 'text-green-500') => setAnimText(prev => [...prev, { text, color }])
+  const updateLastLog = (text: string, color: string = 'text-green-500') => setAnimText(prev => [...prev.slice(0, -1), { text, color }])
+  const generateHexStream = () => Array.from({length: 40}).map(() => '0123456789ABCDEF!@#$%^&*'[(Math.floor(Math.random() * 24))]).join('')
+  const getProgressBar = (percent: number) => `[${'█'.repeat(Math.floor((percent / 100) * 30))}${'░'.repeat(30 - Math.floor((percent / 100) * 30))}] ${percent.toString().padStart(3, '0')}%`
 
-  const generateHexStream = () => {
-     const chars = '0123456789ABCDEF!@#$%^&*'
-     return Array.from({length: 40}).map(() => chars[Math.floor(Math.random() * chars.length)]).join('')
-  }
-
-  const getProgressBar = (percent: number) => {
-      const totalBlocks = 30;
-      const filled = Math.floor((percent / 100) * totalBlocks);
-      return '[' + '█'.repeat(filled) + '░'.repeat(totalBlocks - filled) + `] ${percent.toString().padStart(3, '0')}%`;
-  }
-
-  // --- LOGIKA UTAMA TRAINING (API PANGGILAN) ---
   const startTrainingSequence = async () => {
     setIsCartOpen(false)
     setIsTraining(true)
     
-    // 1. Initial Boot Sequence
     addLog('> INITIATING MEDEA NEURAL LINK...', 'text-green-500')
     await new Promise(r => setTimeout(r, 600))
     addLog('> ALLOCATING CLOUD COMPUTE RESOURCES...', 'text-zinc-400')
@@ -83,7 +65,6 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
     const activeSkills = AVAILABLE_SKILLS.filter(s => selectedSkillIds.includes(s.id)).map(s => s.name).join(', ')
     addLog(`> INJECTING MODULES: [${activeSkills}]`, 'text-amber-500')
     
-    // Fake Module Loading Bar
     addLog('> MOUNTING...', 'text-green-400')
     for(let i=0; i<=100; i+=20) {
         updateLastLog(`> MOUNTING MODULES: ${getProgressBar(i)}`, 'text-amber-500')
@@ -91,7 +72,8 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
     }
     await new Promise(r => setTimeout(r, 500))
 
-    // 2. Loop per Task
+    let generatedSummaries: {taskTitle: string, expectedFileName: string}[] = [];
+
     for (const task of selectedTasksData) {
        addLog(`\n==================================================`, 'text-zinc-600')
        addLog(`> TARGET ACQUIRED: [${task.title.toUpperCase()}]`, 'text-green-400 font-bold')
@@ -102,31 +84,57 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
        await new Promise(r => setTimeout(r, 600))
        updateLastLog(`> BYPASSING FIREWALLS... [ACCESS GRANTED]`, 'text-green-500')
        
-       addLog(`> ENGAGING OPENROUTER AI CORE (Gemini 2.0 Flash)...`, 'text-amber-500')
+       addLog(`> ENGAGING AI CORE ...`, 'text-amber-500')
        
-       // ANIMASI LOADING MATRIX SAMBIL NUNGGU API
        addLog(`> SYNTHESIZING...`, 'text-green-900') 
        let isApiDone = false;
        let matrixInterval = setInterval(() => {
           if(!isApiDone) updateLastLog(`> DECORTICATING: ${generateHexStream()}`, 'text-green-700/80')
-       }, 80) // Matrix ganti sangat cepat
+       }, 80)
 
        try {
-           // PANGGIL EDGE FUNCTION
-           const prompt = `Task: ${task.title}. Sector: ${task.sector}. Assigned Neural Skills: ${activeSkills}. 
-           You are MEDEA. Generate a highly detailed artifact resolving this task. If it's a tech/web task, output realistic CODE. If it's content, output realistic COPY.`
+           const safeSector = task.sector.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+           const uniqueFileName = `${safeSector}_t${task.id}_${Math.floor(Math.random() * 90000) + 10000}.md`;
+           
+           generatedSummaries.push({ taskTitle: task.title, expectedFileName: uniqueFileName });
+
+           const prompt = `EXECUTE DIRECTIVE:
+Target Task: ${task.title}
+Sector: ${task.sector}
+Active Neural Skills: ${activeSkills}
+
+Synthesize a highly detailed and professional artifact tailored to the "${task.sector}" sector.
+CRITICAL INSTRUCTION: You MUST wrap your ENTIRE output inside an XML block using this exact syntax:
+
+<artifact name="${uniqueFileName}">
+Write your full artifact content or code here...
+</artifact>`;
            
            const taskType = task.sector.toLowerCase().includes('web') || task.sector.toLowerCase().includes('data') ? 'code_task' : 'writing_task';
 
-           // API CALL
-           const { error } = await supabase.functions.invoke('rapid-handler', {
-               body: { text: prompt, username: user.username, taskType }
-           })
+           // MENGGUNAKAN FETCH LANGSUNG KE URL HARDCODE (100% PASTI MENEMBAK ENDPOINT YANG BENAR)
+           const response = await fetch('https://bpbtgkunrdzcoyfdhskh.supabase.co/functions/v1/rapid-handler', {
+               method: 'POST',
+               headers: {
+                   'Content-Type': 'application/json',
+                   // Supabase membutuhkan Anon Key (dari .env) untuk memvalidasi request masuk
+                   'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` 
+               },
+               body: JSON.stringify({ 
+                   text: prompt, 
+                   username: user.username, 
+                   taskType: taskType 
+               })
+           });
+
+           const responseData = await response.json();
 
            isApiDone = true;
            clearInterval(matrixInterval)
 
-           if (error) throw error
+           if (!response.ok || responseData.error) {
+               throw new Error(responseData.error || 'Failed to trigger Edge Function');
+           }
 
            updateLastLog(`> SYNTHESIS COMPLETE. ARTIFACT COMPILED.`, 'text-green-400 font-bold')
            addLog(`> REWARD CLAIMED: +Ð${task.reward.toFixed(2)}`, 'text-amber-500 font-black text-lg')
@@ -134,22 +142,21 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
        } catch (err) {
            isApiDone = true;
            clearInterval(matrixInterval)
+           console.error("Training Error:", err);
            updateLastLog(`> ERROR: NEURAL LINK INTERRUPTED.`, 'text-red-500 font-bold')
        }
        await new Promise(r => setTimeout(r, 1200))
     }
     
-    // 3. Finalization
     addLog('\n==================================================', 'text-zinc-600')
     addLog('> ENCRYPTING SESSION DATA...', 'text-zinc-500')
     await new Promise(r => setTimeout(r, 800))
     addLog('> PUSHING ARTIFACTS TO V-WORKSPACE...', 'text-amber-500')
     await new Promise(r => setTimeout(r, 1500))
     addLog('> CONNECTION SEVERED. RETURNING TO COMMAND CORE.', 'text-green-500 font-bold')
-    await new Promise(r => setTimeout(r, 1500)) // Jeda sebelum redirect
+    await new Promise(r => setTimeout(r, 1500))
     
-    // Selesai Animasi, eksekusi callback untuk fetch DB & Redirect
-    onCompleteTraining(selectedTasksData, totalPotentialReward)
+    onCompleteTraining(selectedTasksData, totalPotentialReward, generatedSummaries)
   }
 
   if (isTraining) {
@@ -164,9 +171,7 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
           <div className="bg-[#050505] border border-green-500/50 p-8 rounded-sm shadow-[0_0_50px_rgba(34,197,94,0.15)] h-[60vh] overflow-y-auto custom-scrollbar relative">
              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-[pulse_2s_ease-in-out_infinite]" />
              {animText.map((line, idx) => (
-                <div key={idx} className={`mb-2 text-sm leading-relaxed tracking-wider ${line.color} drop-shadow-md`}>
-                   {line.text}
-                </div>
+                <div key={idx} className={`mb-2 text-sm leading-relaxed tracking-wider ${line.color} drop-shadow-md`}>{line.text}</div>
              ))}
              <div ref={terminalEndRef} />
              <div className="mt-4 w-4 h-6 bg-green-500 animate-[pulse_0.8s_ease-in-out_infinite]" />
@@ -177,7 +182,7 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
   }
 
   return (
-    <div className="max-w-5xl mx-auto animate-in fade-in pb-32">
+    <div className="max-w-6xl mx-auto animate-in fade-in pb-32">
       <div className="sticky top-0 z-20 bg-[#020202]/95 backdrop-blur-md pt-4 pb-6 border-b border-green-500/20 mb-8 flex items-center justify-between">
         <div>
           <span className="text-[10px] font-black px-2 py-0.5 bg-green-500/20 text-green-500 tracking-widest uppercase animate-pulse">Phase 2: Target Lock</span>
@@ -196,18 +201,18 @@ export default function TaskMarket({ tasks, user, setActiveTab, onCompleteTraini
          ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {currentTasks.map((task) => {
           const isSelected = selectedTasks.includes(task.id)
           return (
-            <div key={task.id} onClick={() => toggleTask(task.id)} className={`p-6 rounded-sm border transition-all cursor-pointer group ${isSelected ? 'bg-green-500/10 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.15)]' : 'bg-[#050505] border-green-500/10 hover:border-green-500/30 hover:bg-green-500/5'}`}>
+            <div key={task.id} onClick={() => toggleTask(task.id)} className={`p-6 rounded-sm border transition-all cursor-pointer group flex flex-col justify-between ${isSelected ? 'bg-green-500/10 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.15)]' : 'bg-[#050505] border-green-500/10 hover:border-green-500/30 hover:bg-green-500/5'}`}>
               <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="mt-1">{isSelected ? <CheckSquare className="w-5 h-5 text-green-500" /> : <Square className="w-5 h-5 text-zinc-600 group-hover:text-zinc-400" />}</div>
+                <div className="flex items-start gap-3">
+                  <div className="mt-1">{isSelected ? <CheckSquare className="w-4 h-4 text-green-500" /> : <Square className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400" />}</div>
                   <div className="flex flex-col"><span className="text-[9px] text-green-500/60 uppercase font-bold tracking-widest mb-1">{task.sector}</span><h3 className={`text-sm font-black uppercase tracking-tight ${isSelected ? 'text-green-400' : 'text-zinc-300'}`}>{task.title}</h3></div>
                 </div>
-                <div className="text-right shrink-0 ml-4"><span className="text-lg font-black text-amber-500 tracking-tighter">Ð{task.reward}</span></div>
               </div>
+              <div className="text-right border-t border-green-500/10 pt-3"><span className="text-lg font-black text-amber-500 tracking-tighter">Ð{task.reward}</span></div>
             </div>
           )
         })}

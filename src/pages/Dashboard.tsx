@@ -14,6 +14,13 @@ import { Menu, Wallet, Activity, Brain, Target, Folder, Database, Server, XCircl
 import { supabase, INITIAL_TASKS } from '../lib/supabase'
 import { User, Task, Transaction, AgentLog, VirtualFile, ChatMessage, AgentMemory } from '../types'
 
+export type NewArtifactSummary = {
+  taskId?: number;
+  taskTitle: string;
+  fileId: string;
+  fileName: string;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   
@@ -26,7 +33,8 @@ export default function Dashboard() {
   
   const [trainingStep, setTrainingStep] = useState<0 | 1 | 2>(0)
   const [selectedSkillIds, setSelectedSkillIds] = useState<number[]>([]) 
-  const [newArtifactIds, setNewArtifactIds] = useState<string[]>([])
+  // STATE BARU: Menyimpan ringkasan kaya untuk Medea Tab
+  const [newArtifacts, setNewArtifacts] = useState<NewArtifactSummary[]>([])
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [runningTool, setRunningTool] = useState<string | null>(null)
@@ -134,7 +142,7 @@ export default function Dashboard() {
           {activeTab === 'dashboard' && <DashboardTab user={user} agentLogs={agentLogs} novaStatus={medeaStatus} runningTool={runningTool} setAgentLogs={setAgentLogs} setActiveTab={setActiveTab} />}
           
           {activeTab === 'medea' && (
-            <MedeaTab user={user} setActiveTab={setActiveTab} setTrainingStep={setTrainingStep} newArtifactIds={newArtifactIds} />
+            <MedeaTab user={user} setActiveTab={setActiveTab} setTrainingStep={setTrainingStep} newArtifacts={newArtifacts} />
           )}
 
           {activeTab === 'tools' && (
@@ -148,20 +156,30 @@ export default function Dashboard() {
               setActiveTab={setActiveTab} 
               trainingStep={trainingStep}
               selectedSkillIds={selectedSkillIds}
-              onCompleteTraining={async (completedTasks, totalReward) => {
+              onCompleteTraining={async (completedTasks, totalReward, generatedSummaries) => {
                  
                  await new Promise(r => setTimeout(r, 2000));
 
-                 // MENGGUNAKAN updated_at UNTUK MEMPERBAIKI ERROR 400
                  const { data: latestFiles } = await supabase
                     .from('virtual_files')
-                    .select('id')
+                    .select('id, name')
                     .eq('username', user.username)
                     .order('updated_at', { ascending: false })
                     .limit(completedTasks.length);
 
                  if (latestFiles) {
-                     setNewArtifactIds(latestFiles.map(f => f.id));
+                     // MAPPING FILE NYATA DARI DB KE SUMMARY TASK
+                     const mappedArtifacts = generatedSummaries.map((summary) => {
+                         const foundFile = latestFiles.find(f => f.name === summary.expectedFileName);
+                         const fileToUse = foundFile || latestFiles.shift(); // fallback jika AI sedikit typo di nama file
+                         return {
+                             taskTitle: summary.taskTitle,
+                             fileName: fileToUse?.name || summary.expectedFileName,
+                             fileId: fileToUse?.id || ''
+                         }
+                     }).filter(a => a.fileId !== '');
+                     
+                     setNewArtifacts(mappedArtifacts);
                  }
 
                  await fetchDatabaseData();
@@ -190,7 +208,7 @@ export default function Dashboard() {
             />
           )}
 
-          {activeTab === 'workspace' && <WorkspaceTab virtualFiles={virtualFiles} selectedFile={selectedFile} setSelectedFile={setSelectedFile} newArtifactIds={newArtifactIds} setNewArtifactIds={setNewArtifactIds} />}
+          {activeTab === 'workspace' && <WorkspaceTab virtualFiles={virtualFiles} selectedFile={selectedFile} setSelectedFile={setSelectedFile} newArtifactIds={newArtifacts.map(a => a.fileId)} setNewArtifactIds={(ids) => setNewArtifacts(prev => prev.filter(a => ids.includes(a.fileId)))} />}
           {activeTab === 'memory' && <MemoryTab agentMemories={agentMemories} />}
           {activeTab === 'local_deploy' && <LocalDeployTab user={user} />}
         </div>
