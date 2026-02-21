@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { InteractiveBackground } from '../components/InteractiveBackground'
+import DashboardTab from '../components/DashboardTab'
+import ActiveMissionTab from '../components/ActiveMissionTab'
+import InboxTab from '../components/InboxTab'
+import TaskMarket from '../components/TaskMarket'
+import WorkspaceTab from '../components/WorkspaceTab'
+import MemoryTab from '../components/MemoryTab'
+import ToolsTab from '../components/ToolsTab'
 import {
   Terminal, Zap, Brain, BookOpen, Menu, X, Search,
   Activity, Wallet, Clock, TrendingUp, RotateCcw, CheckCircle, XCircle, Target, BarChart3,
@@ -16,7 +23,7 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([])
-  const [activeTab, setActiveTab] = useState<'dashboard'|'tasks'|'tools'|'workspace'|'inbox'|'memory'|'history'|'active_mission'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard'|'tasks'|'tools'|'workspace'|'inbox'|'memory'|'active_mission'>('dashboard')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [runningTool, setRunningTool] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -380,15 +387,7 @@ export default function Dashboard() {
     }
   }
 
-  const tools = [
-    { name: 'decide_activity', desc: 'Strategic work/learn decision', cost: TOOL_COSTS.decide_activity, icon: Brain },
-    { name: 'submit_work', desc: 'Submit completed work', cost: TOOL_COSTS.submit_work, icon: BookOpen },
-    { name: 'learn', desc: 'Improve agent capabilities', cost: TOOL_COSTS.learn, icon: Activity },
-    { name: 'get_status', desc: 'Check current status', cost: TOOL_COSTS.get_status, icon: Target },
-    { name: 'search_web', desc: 'Search for information', cost: TOOL_COSTS.search_web, icon: Search },
-    { name: 'create_file', desc: 'Create and manage files', cost: TOOL_COSTS.create_file, icon: Terminal },
-    { name: 'execute_code', desc: 'Run code in sandbox', cost: TOOL_COSTS.execute_code, icon: Terminal },
-  ]
+
 
   const navItems = [
     { id: 'dashboard',  icon: BarChart3,     label: 'OPERATIONS' },
@@ -396,8 +395,7 @@ export default function Dashboard() {
     { id: 'tasks',      icon: Target,        label: 'TASK MARKET' },
     { id: 'memory',     icon: Database,      label: 'NEURAL MEMORY' },
     { id: 'workspace',  icon: Folder,        label: 'V-WORKSPACE' },
-    { id: 'tools',      icon: Brain,         label: 'AGENT TOOLS' },
-    { id: 'history',    icon: Clock,         label: 'LOG HISTORY' }
+    { id: 'tools',      icon: Brain,         label: 'AGENT TOOLS' }
   ]
 
   // Add active mission to sidebar if active
@@ -494,446 +492,71 @@ export default function Dashboard() {
 
         <div className="p-8 pb-20 relative overflow-y-auto custom-scrollbar flex-1 z-10">
           
-          {/* TAB: Dashboard Asli */}
+          {/* TAB: Dashboard */}
           {activeTab === 'dashboard' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-              {/* NOVA STATUS BANNER */}
-              <div className="flex items-center gap-4 p-4 bg-[#050505]/80 border border-green-500/20 rounded-sm backdrop-blur-md relative overflow-hidden cursor-pointer hover:border-green-500/50 transition-colors" onClick={() => runningTool === 'completing' ? setActiveTab('active_mission') : setActiveTab('inbox')}>
-                <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-transparent pointer-events-none" />
-                <div className="w-14 h-14 rounded-sm overflow-hidden border-2 border-green-500 shadow-[0_0_20px_rgba(57,255,20,0.4)] shrink-0 relative">
-                  <img src="/logo.jpeg" alt="Nova" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-green-500/5 animate-pulse" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-base font-black text-white tracking-[0.2em] uppercase italic">NOVA</span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-sm font-black uppercase tracking-widest transition-all duration-300 ${
-                      novaStatus === 'auto' || runningTool === 'completing' ? 'bg-green-500/20 text-green-400 border border-green-500/40 shadow-[0_0_8px_rgba(57,255,20,0.4)] animate-pulse' :
-                      novaStatus === 'processing' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
-                      'bg-zinc-900 text-zinc-500 border border-zinc-800'
-                    }`}>
-                      {novaStatus === 'auto' ? '● EXECUTING' : runningTool === 'completing' ? '● MISSION ACTIVE' : novaStatus === 'processing' ? '● PROCESSING' : '● STANDBY'}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tighter truncate">
-                    Neural Agent v4.0.5 — Autonomous mode active // Operator: <span className="text-green-500/60">{user.username}</span>
-                  </p>
-                </div>
-                <div className="text-right shrink-0 mr-4">
-                  <div className="text-[9px] text-green-500/40 uppercase font-bold tracking-widest mb-0.5">Knowledge</div>
-                  <div className="text-2xl font-black text-green-500 neon-glow tabular-nums">{agentMemories.length}</div>
-                  <div className="text-[9px] text-zinc-600 uppercase font-bold">deposits</div>
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setActiveTab(runningTool === 'completing' ? 'active_mission' : 'inbox'); }}
-                  className="px-4 py-2 bg-green-500 text-black text-[10px] font-black uppercase tracking-[0.2em] rounded-sm hover:bg-green-400 transition-all cyber-button shadow-[0_0_15px_rgba(57,255,20,0.3)] shrink-0"
-                >
-                  {runningTool === 'completing' ? 'View_Mission →' : 'Talk_to_Nova →'}
-                </button>
-              </div>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  { label: 'Neural Balance', value: `Ð${user.balance.toFixed(2)}`, icon: Wallet, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/30' },
-                  { label: 'Nodes Completed', value: user.tasksCompleted, icon: Target, color: 'text-green-400', bg: 'bg-green-400/10', border: 'border-green-400/30' },
-                  { label: 'Total Earnings', value: `Ð${user.totalEarnings.toFixed(2)}`, icon: TrendingUp, color: 'text-green-300', bg: 'bg-green-300/10', border: 'border-green-300/30' },
-                  { label: 'System Efficiency', value: `${user.tasksCompleted > 0 ? Math.min(100, Math.round((user.totalEarnings / (user.tasksCompleted * 25)) * 100)) : 0}%`, icon: Activity, color: 'text-green-500', bg: 'bg-green-500/20', border: 'border-green-500/50' },
-                ].map((stat, i) => (
-                  <div key={i} className={`p-6 rounded-sm bg-[#0a0a0a]/60 border shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md group hover:border-green-500 transition-all duration-300 relative overflow-hidden ${stat.border}`}>
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-green-500/5 -rotate-45 translate-x-8 -translate-y-8" />
-                    <div className="flex items-center justify-between mb-4 relative z-10">
-                      <div className={`p-3 rounded-sm ${stat.bg} shadow-inner`}>
-                        <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                      </div>
-                      <div className="flex gap-1">
-                        {[1, 2, 3].map(j => <div key={j} className="w-1 h-3 bg-green-500/10 rounded-full group-hover:bg-green-500/30 transition-colors" />)}
-                      </div>
-                    </div>
-                    <div className="text-green-500/40 text-[10px] font-black uppercase tracking-[0.2em] mb-1 relative z-10">{stat.label}</div>
-                    <div className="text-2xl font-black text-white group-hover:text-green-400 transition-colors tracking-tighter tabular-nums relative z-10 uppercase">{stat.value}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-[#050505]/80 rounded-sm border border-green-500/20 overflow-hidden neon-border backdrop-blur-md">
-                <div className="flex items-center justify-between px-4 py-3 bg-green-500/5 border-b border-green-500/10">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-green-500 animate-pulse" />
-                    <span className="text-[10px] font-black tracking-[0.2em] text-green-500/70 uppercase">AGENT_STREAMS</span>
-                  </div>
-                  <button onClick={() => { setAgentLogs([]); localStorage.setItem('clawmanager_logs', JSON.stringify([])); }} className="p-1 rounded hover:bg-green-500/10 text-green-500/40 hover:text-green-400 transition-colors">
-                    <RotateCcw className="w-3 h-3" />
-                  </button>
-                </div>
-                <div className="p-4 h-64 overflow-y-auto font-mono text-[11px] space-y-1 custom-scrollbar bg-black/40">
-                  {agentLogs.length === 0 ? (
-                    <div className="text-green-900/40 italic flex items-center gap-2">
-                      <div className="w-1 h-1 bg-green-900/40 rounded-full animate-ping" />
-                      Listening for neural signals...
-                    </div>
-                  ) : agentLogs.slice().reverse().map(log => (
-                    <div key={log.id} className="flex items-start gap-3 group py-1 border-b border-green-500/5 hover:bg-green-500/5 transition-colors">
-                      <span className="text-green-900 font-bold shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                      <span className="text-green-500/60 font-black shrink-0 uppercase tracking-tighter">{log.tool}:</span>
-                      <span className="text-zinc-400 group-hover:text-green-100 transition-colors">{log.output}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <DashboardTab
+              user={user}
+              agentLogs={agentLogs}
+              novaStatus={novaStatus}
+              runningTool={runningTool}
+              setAgentLogs={setAgentLogs}
+              setActiveTab={setActiveTab}
+            />
           )}
 
           {/* TAB AI: ACTIVE MISSION (SPLIT SCREEN) */}
           {activeTab === 'active_mission' && (
-             <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
-               <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
-                  <div className="flex items-center gap-3">
-                    <Activity className={`w-6 h-6 ${runningTool === 'completing' ? 'text-amber-500 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
-                    <h2 className={`text-xl font-black italic tracking-tighter ${runningTool === 'completing' ? 'text-amber-400' : 'text-white'}`}>
-                      ACTIVE_MISSION // {runningTool === 'completing' ? 'EXECUTING' : 'COMPLETED'}
-                    </h2>
-                  </div>
-                  {runningTool !== 'completing' && (
-                    <button onClick={() => setActiveTab('workspace')} className="px-4 py-2 bg-green-500/10 text-green-500 border border-green-500/30 rounded-sm text-[10px] font-black uppercase hover:bg-green-500 hover:text-black transition-all">
-                      Go to Workspace →
-                    </button>
-                  )}
-               </div>
-
-               <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-[500px]">
-                 
-                 {/* LEFT: Agent Thought Process (Terminal) */}
-                 <div className="flex-1 lg:w-1/2 bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 flex flex-col neon-border relative overflow-hidden">
-                   <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-green-500/30 to-transparent" />
-                   <div className="text-[10px] text-green-500/40 font-black uppercase tracking-widest border-b border-green-500/10 pb-3 mb-4 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Terminal className="w-3 h-3" />
-                        <span>Agent_Logic_Stream</span>
-                      </div>
-                      {runningTool === 'completing' ? <span className="text-amber-500 animate-pulse">● LIVE UPLINK</span> : <span className="text-green-500">● IDLE</span>}
-                   </div>
-                   <div className="flex-1 overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed relative">
-                     {runningTool === 'completing' || codingAnimation ? (
-                         <div className="text-green-400 bg-black/50 p-4 rounded-sm border border-green-500/10 shadow-[inset_0_0_20px_rgba(34,197,94,0.05)] min-h-full">
-                             {animationType === 'code' ? (
-                                 <pre className="whitespace-pre-wrap">{animationText}<span className="inline-block w-2 h-4 bg-green-500 animate-pulse align-middle ml-0.5">_</span></pre>
-                             ) : (
-                                 <div className="whitespace-pre-wrap text-zinc-300">{animationText}<span className="inline-block w-1.5 h-3.5 bg-amber-400/80 animate-pulse align-middle ml-0.5" /></div>
-                             )}
-                         </div>
-                     ) : (
-                         <div className="text-green-500 flex flex-col items-center justify-center h-full opacity-60 space-y-4">
-                             <CheckCircle className="w-12 h-12 mb-2 shadow-[0_0_15px_rgba(34,197,94,0.4)] rounded-full" />
-                             <div className="text-center">
-                                <div className="uppercase tracking-[0.3em] font-black text-sm mb-1">Mission Accomplished</div>
-                                <div className="text-zinc-500 text-[10px]">Contract settled and output committed to workspace.</div>
-                             </div>
-                         </div>
-                     )}
-                   </div>
-                 </div>
-
-                 {/* RIGHT: Live Workspace Preview */}
-                 <div className="flex-1 lg:w-1/2 bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 flex flex-col neon-border bg-[linear-gradient(rgba(34,197,94,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
-                   <div className="text-[10px] text-green-500/40 font-black uppercase tracking-widest border-b border-green-500/10 pb-3 mb-4 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Folder className="w-3 h-3" />
-                        <span>Live_Output_Preview</span>
-                      </div>
-                      {runningTool !== 'completing' && virtualFiles.length > 0 && (
-                        <span className="text-green-600 font-mono italic truncate max-w-[150px]">{virtualFiles[0].name}</span>
-                      )}
-                   </div>
-                   <div className="flex-1 overflow-y-auto custom-scrollbar font-mono text-[11px] text-green-100/90 whitespace-pre-wrap bg-black/40 p-4 border border-green-500/10 rounded-sm">
-                     {runningTool === 'completing' || codingAnimation ? (
-                         <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-70">
-                             <div className="relative">
-                               <Activity className="w-10 h-10 text-amber-500 animate-pulse" />
-                               <div className="absolute inset-0 bg-amber-500/20 blur-xl rounded-full" />
-                             </div>
-                             <span className="text-amber-500/70 uppercase tracking-[0.4em] font-black animate-pulse">Synthesizing Node...</span>
-                         </div>
-                     ) : virtualFiles.length > 0 ? (
-                         <pre style={{ tabSize: 4 }} className="whitespace-pre-wrap selection:bg-green-500/30">{virtualFiles[0].content}</pre>
-                     ) : (
-                         <div className="h-full flex items-center justify-center">
-                            <span className="text-zinc-600 italic uppercase tracking-[0.2em] text-[10px]">Awaiting Synthesis</span>
-                         </div>
-                     )}
-                   </div>
-                 </div>
-
-               </div>
-             </div>
+            <ActiveMissionTab
+              runningTool={runningTool}
+              animationText={animationText}
+              animationType={animationType}
+              codingAnimation={codingAnimation}
+              virtualFiles={virtualFiles}
+              setActiveTab={setActiveTab}
+            />
           )}
 
           {/* TAB AI: Inbox (Cleaned up for chat only) */}
           {activeTab === 'inbox' && (
-             <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
-             <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
-                <MessageSquare className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_COMM_LINK</h2>
-             </div>
-             <div className="flex-1 bg-[#050505]/60 rounded-sm border border-green-500/10 flex flex-col min-h-[500px] neon-border overflow-hidden">
-               <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar bg-black/40">
-                 {chatMessages.map((msg, msgIdx) => {
-                   const isAnimatingBubble = animatingMsgId !== null && msgIdx === chatMessages.length - 1 && msg.sender === 'agent'
-                   return (
-                   <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                     {msg.sender === 'system' && !isAnimatingBubble ? (
-                        <div className="w-full flex justify-center py-2">
-                            <span className="text-[9px] font-black text-green-900 uppercase tracking-[0.3em] font-mono animate-pulse">{msg.text}</span>
-                        </div>
-                     ) : (
-                        <div className={`max-w-[85%] rounded-sm px-4 py-3 border relative group ${
-                            msg.sender === 'user' 
-                                ? 'bg-green-500/10 border-green-500/30 text-green-100 ml-12' 
-                                : 'bg-black/80 border-white/10 text-zinc-300 mr-12 shadow-[0_5px_15px_rgba(0,0,0,0.4)]'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1.5 border-b border-white/5 pb-1">
-                            <div className={`w-1.5 h-1.5 rounded-full ${msg.sender === 'user' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`} />
-                            <span className="text-[8px] font-black uppercase tracking-widest opacity-40">
-                              {msg.sender === 'user' ? 'Operator' : 'Nova_v4'}
-                            </span>
-                            <span className="text-[8px] opacity-20 ml-auto font-mono">{new Date(msg.timestamp).toLocaleTimeString()}</span>
-                          </div>
-                          
-                          <div className="whitespace-pre-wrap text-[11px] font-mono tracking-tighter leading-relaxed">
-                            {isAnimatingBubble ? (
-                                <div className="flex items-center gap-3 py-2 px-1">
-                                  <div className="flex gap-1">
-                                    {[0,1,2].map(i => (
-                                      <div key={i} className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-                                    ))}
-                                  </div>
-                                  <span className="text-[10px] text-green-400/70 font-mono tracking-wide">{animationText || 'Uplink established . . .'}</span>
-                                </div>
-                            ) : (
-                               msg.text.split('**').map((part, i) => i % 2 === 1 ? <b key={i} className="text-green-400 font-extrabold">{part}</b> : part)
-                            )}
-                          </div>
-                        </div>
-                     )}
-                   </div>
-                 )
-                 })} 
-               </div>
-               <div className="p-4 bg-[#050505] border-t border-green-500/10 flex gap-4">
-                 <input 
-                    type="text" 
-                    value={chatInput} 
-                    onChange={(e) => setChatInput(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
-                    className="flex-1 bg-black/50 border border-green-500/20 rounded-sm px-4 py-3 text-[11px] font-mono text-green-400 placeholder:text-green-900 focus:outline-none focus:border-green-500/50 uppercase" 
-                    placeholder="Enter command sequence..." 
-                  />
-                 <button onClick={handleSendMessage} className="bg-green-500/10 border border-green-500/40 p-3 rounded-sm hover:bg-green-500 hover:text-black transition-all group cyber-button">
-                    <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform"/>
-                 </button>
-               </div>
-             </div>
-           </div>
+            <InboxTab
+              chatMessages={chatMessages}
+              chatInput={chatInput}
+              setChatInput={setChatInput}
+              handleSendMessage={handleSendMessage}
+              animatingMsgId={animatingMsgId}
+              animationText={animationText}
+              chatContainerRef={chatContainerRef}
+            />
           )}
 
-          {/* OTHER TABS: Tasks, Workspace, Memory, Tools, History (KEPT UNCHANGED) */}
+
           
           {/* TAB: Task Market */}
           {activeTab === 'tasks' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
-                <div className="flex flex-col">
-                    <h2 className="text-xl font-black text-white italic tracking-tighter">Available_Contracts</h2>
-                    <span className="text-[10px] text-green-500/40 font-mono uppercase tracking-[0.2em]">{tasks.filter(t => t.status === 'open').length} ACTIVE NODES IN MARKET</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {tasks.filter(t => t.status === 'open').slice(0, 150).map(task => (
-                  <div key={task.id} className="bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 hover:border-green-500/50 transition-all duration-300 group relative overflow-hidden neon-border">
-                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-30 transition-opacity">
-                        <Target className="w-8 h-8 text-green-500" />
-                    </div>
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="text-[9px] font-black px-2 py-0.5 rounded-sm bg-green-500/10 text-green-500 border border-green-500/20 uppercase tracking-widest">{task.sector}</span>
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-sm uppercase tracking-widest ${task.difficulty === 'hard' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : task.difficulty === 'medium' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-green-500/10 text-green-400 border border-green-400/20'}`}>{task.difficulty}</span>
-                    </div>
-                    <h3 className="font-black text-white mb-2 tracking-tight group-hover:text-green-400 transition-colors uppercase italic">{task.title}</h3>
-                    <p className="text-[11px] text-zinc-500 mb-6 font-mono leading-relaxed line-clamp-2 uppercase tracking-tighter">{task.description}</p>
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-green-500/5">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 font-bold uppercase">REWARD_CREDITS</span>
-                        <span className="text-green-500 font-black text-lg tracking-tighter">Ð{task.reward}</span>
-                      </div>
-                      <button onClick={() => setSelectedTask(task)} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500 hover:text-black transition-all cyber-button">Accept</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <TaskMarket tasks={tasks} onSelectTask={setSelectedTask} />
           )}
 
           {/* TAB AI: Workspace */}
           {activeTab === 'workspace' && (
-             <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
-             <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
-                <Folder className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                <h2 className="text-xl font-black text-white italic tracking-tighter">VIRTUAL_DATA_STORAGE</h2>
-             </div>
-             <div className="flex-1 flex gap-6 min-h-[500px]">
-               <div className="w-1/3 bg-[#050505]/80 rounded-sm border border-green-500/10 p-3 space-y-1 neon-border custom-scrollbar overflow-y-auto">
-                 {virtualFiles.map(f => (
-                    <button 
-                        key={f.id} 
-                        onClick={() => setSelectedFile(f)} 
-                        className={`w-full text-left p-3 rounded-sm text-[10px] font-mono uppercase tracking-tighter flex items-center justify-between group transition-all ${
-                            selectedFile?.id === f.id ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'text-zinc-500 hover:bg-green-500/5 hover:text-zinc-300'
-                        }`}
-                    >
-                        <div className="flex items-center gap-2">
-                           <FileText className={`w-3 h-3 ${selectedFile?.id === f.id ? 'text-green-400' : 'text-zinc-700'}`}/>
-                           {f.name}
-                        </div>
-                    </button>
-                 ))}
-               </div>
-               <div className="flex-1 bg-[#050505]/80 rounded-sm border border-green-500/10 p-6 font-mono text-[11px] text-zinc-400 whitespace-pre-wrap overflow-y-auto custom-scrollbar neon-border bg-[linear-gradient(rgba(34,197,94,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
-                 {selectedFile ? (
-                    <div className="animate-in fade-in duration-300">
-                        <div className="pb-4 mb-4 border-b border-green-500/10 flex justify-between items-center">
-                            <span className="text-green-500/40 text-[9px] font-black uppercase tracking-[0.2em]">FILE://{selectedFile.name}</span>
-                            <span className="text-green-900 text-[8px]">{new Date(selectedFile.updatedAt).toISOString()}</span>
-                        </div>
-                        <pre className="whitespace-pre-wrap font-mono text-[11px] text-green-100/90 leading-relaxed selection:bg-green-500/30" style={{ tabSize: 4 }}>
-                            {selectedFile.content}
-                        </pre>
-                    </div>
-                 ) : (
-                    <div className="h-full flex items-center justify-center text-green-900/30 uppercase tracking-[0.4em] italic font-black">
-                        NO_DATA_MOUNTED
-                    </div>
-                 )}
-               </div>
-             </div>
-           </div>
+            <WorkspaceTab
+              virtualFiles={virtualFiles}
+              selectedFile={selectedFile}
+              setSelectedFile={setSelectedFile}
+            />
           )}
 
           {/* TAB AI: Memory */}
           {activeTab === 'memory' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-center gap-3 border-b border-green-500/20 pb-4">
-                <Database className="w-6 h-6 text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"/>
-                <h2 className="text-xl font-black text-white italic tracking-tighter">NEURAL_DEPOSITS</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {agentMemories.map(m => (
-                  <div key={m.id} className="bg-[#050505]/80 rounded-sm border border-green-500/10 p-5 neon-border group hover:border-green-500/40 transition-all">
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-black text-[11px] text-green-400 tracking-widest uppercase">{m.topic}</h3>
-                        <div className="w-2 h-2 rounded-full bg-green-500/40 animate-pulse" />
-                    </div>
-                    <p className="text-[11px] text-zinc-500 font-mono uppercase tracking-tighter leading-snug">{m.details}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <MemoryTab agentMemories={agentMemories} />
           )}
 
           {/* TAB: Tools (NEURAL UPGRADES) */}
           {activeTab === 'tools' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
-              <div className="flex flex-col border-l-4 border-green-500 pl-4 py-2">
-                <h2 className="text-2xl font-black text-white tracking-tighter italic">Neural_Upgrades</h2>
-                <p className="text-[10px] text-green-500/50 font-mono tracking-[0.2em] uppercase">Install modules to increase Nova's base efficiency (+15% Multiplier per Module)</p>
-              </div>
-
-              {/* Tampilkan Multiplier Saat Ini */}
-              <div className="bg-[#050505]/80 rounded-sm border border-green-500/30 p-4 flex items-center gap-4 neon-border">
-                <Activity className="w-8 h-8 text-green-500 animate-pulse" />
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Current Yield Multiplier</div>
-                  <div className="text-xl font-black text-green-400">
-                    x{(1 + ((user.ownedTools?.length || 0) * 0.15)).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {tools.map(tool => {
-                  const isOwned = user.ownedTools?.includes(tool.name)
-                  return (
-                  <div key={tool.name} className={`bg-[#050505]/80 rounded-sm border ${isOwned ? 'border-amber-500/30' : 'border-green-500/10'} p-6 relative group overflow-hidden transition-all`}>
-                    <div className="flex items-start justify-between mb-6 relative z-10">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-sm bg-green-500/5 border ${isOwned ? 'border-amber-500' : 'border-green-500/20'} flex items-center justify-center`}>
-                            <tool.icon className={`w-7 h-7 ${isOwned ? 'text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]' : 'text-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]'}`} />
-                        </div>
-                        <div>
-                            <h3 className={`font-black tracking-widest uppercase italic ${isOwned ? 'text-amber-400' : 'text-white'}`}>{tool.name}</h3>
-                            <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tighter mt-1">{tool.desc}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between relative z-10 mt-4 pt-4 border-t border-green-500/5">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 font-bold uppercase">INSTALLATION_COST</span>
-                        <span className="text-green-500/80 font-black text-sm tabular-nums">Ð{tool.cost.toFixed(2)}</span>
-                      </div>
-                      
-                      {isOwned ? (
-                         <button disabled className="px-6 py-2 text-[10px] font-black uppercase tracking-[0.2em] bg-amber-500/10 text-amber-500 border border-amber-500/30 cursor-not-allowed">
-                           INTEGRATED
-                         </button>
-                      ) : (
-                        <button 
-                          onClick={() => purchaseUpgrade(tool.name)} 
-                          disabled={runningTool !== null || user.balance < tool.cost} 
-                          className="px-6 py-2 text-[10px] font-black uppercase tracking-[0.2em] bg-green-500/10 text-green-500 border border-green-500/20 hover:bg-green-500 hover:text-black transition-all disabled:opacity-30 cyber-button"
-                        >
-                          {runningTool === tool.name ? 'INSTALLING...' : 'Acquire'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )})}
-              </div>
-            </div>
-          )}
-
-          {/* TAB: History */}
-          {activeTab === 'history' && (
-            <div className="space-y-6 animate-in fade-in duration-500">
-              <h2 className="text-xl font-black text-white italic tracking-tighter border-b border-green-500/20 pb-4">NODE_TELEMETRY</h2>
-              <div className="bg-[#050505]/80 rounded-sm border border-green-500/10 overflow-hidden neon-border">
-                <table className="w-full font-mono text-[10px]">
-                  <thead>
-                    <tr className="bg-green-500/5 border-b border-green-500/10">
-                      <th className="text-left px-6 py-4 text-green-500/40 uppercase tracking-widest font-black">Timestamp</th>
-                      <th className="text-left px-6 py-4 text-green-500/40 uppercase tracking-widest font-black">Category</th>
-                      <th className="text-left px-6 py-4 text-green-500/40 uppercase tracking-widest font-black">Operation</th>
-                      <th className="text-right px-6 py-4 text-green-500/40 uppercase tracking-widest font-black">Delta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.slice().reverse().map(tx => (
-                      <tr key={tx.id} className="border-b border-green-500/5 hover:bg-green-500/5 transition-colors group">
-                        <td className="px-6 py-4 text-zinc-500 group-hover:text-zinc-300">{new Date(tx.timestamp).toLocaleString().toUpperCase()}</td>
-                        <td className="px-6 py-4">
-                            <span className={`px-2 py-0.5 rounded-sm font-black tracking-tighter ${tx.type === 'task_reward' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                                {tx.type === 'task_reward' ? 'INFLOW' : 'OUTFLOW'}
-                            </span>
-                        </td>
-                        <td className="px-6 py-4 text-zinc-300 font-bold uppercase tracking-tighter">{tx.description}</td>
-                        <td className={`px-6 py-4 font-black text-right tabular-nums text-sm ${tx.amount > 0 ? 'text-green-400 neon-glow' : 'text-red-400'}`}>
-                            {tx.amount > 0 ? '+' : ''}Ð{tx.amount.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <ToolsTab
+              user={user}
+              runningTool={runningTool}
+              purchaseUpgrade={purchaseUpgrade}
+            />
           )}
 
         </div>
